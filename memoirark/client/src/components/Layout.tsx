@@ -1,6 +1,6 @@
 import { ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Moon, Sun, Home, Calendar, BookOpen, Users, FileText, Sparkles } from 'lucide-react'
+import { Moon, Sun, Home, Calendar, BookOpen, Users, FileText, Sparkles, Clock, Search, Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface LayoutProps {
@@ -14,10 +14,14 @@ export default function Layout({ children, theme, toggleTheme }: LayoutProps) {
 
   const navItems = [
     { path: '/', label: 'Dashboard', icon: Home },
+    { path: '/timeline', label: 'Timeline', icon: Clock },
     { path: '/events', label: 'Events', icon: Calendar },
+    { path: '/chapters', label: 'Chapters', icon: BookOpen },
     { path: '/people', label: 'People', icon: Users },
     { path: '/artifacts', label: 'Artifacts', icon: FileText },
-    { path: '/synchronicities', label: 'Synchronicities', icon: Sparkles },
+    { path: '/synchronicities', label: 'Sync', icon: Sparkles },
+    { path: '/search', label: 'Search', icon: Search },
+    { path: '/export', label: 'Export', icon: Download },
   ]
 
   return (

@@ -610,4 +610,88 @@ Epilogue is stored as Chapter number = 14 (documented in Phase 1).
 Phase 2 maintains the Golden Rule: no AI summarization or auto-linking.
 All links are created explicitly by user action.
 
+================================================================
+PHASE 3 IMPLEMENTATION DOCUMENTATION
+================================================================
+Phase 3 was implemented on December 11, 2025.
+
+## Phase 3 Focus
+- Timeline visualization
+- Full-text search
+- Chapter narrative reading view
+- Data export (JSON and Markdown)
+
+## Backend API — Phase 3 Endpoints
+
+### Timeline
+- `GET /api/timeline` — Chronological events grouped by year
+  - Optional filters: `?startYear=`, `?endYear=`, `?chapterId=`, `?traumaCycleId=`
+  - Returns: `{ totalEvents, yearRange, timeline: [{ year, events }] }`
+
+### Search
+- `GET /api/search` — Full-text search across all entities
+  - Required: `?q=` (min 2 characters)
+  - Optional: `?type=` (events, persons, artifacts, synchronicities, chapters, songs)
+  - Returns: `{ query, totalResults, results: { events, persons, ... } }`
+
+### Narrative
+- `GET /api/narrative/chapters` — All chapters with events for narrative view
+- `GET /api/narrative/chapters/:id` — Single chapter with events and prev/next navigation
+
+### Export
+- `GET /api/export/json` — Full data export as JSON (downloads file)
+- `GET /api/export/markdown` — Memoir draft export as Markdown (downloads file)
+- `GET /api/export/stats` — Export statistics (counts, date range)
+
+## Frontend — Phase 3 Pages
+
+### Timeline (`/timeline`)
+- Vertical timeline with events grouped by year
+- Filter by chapter or trauma cycle
+- Shows linked entity counts per event
+- Keystone events marked with star
+
+### Search (`/search`)
+- Global search across all entity types
+- Filter by entity type
+- Results grouped by category with links to detail pages
+
+### Chapters (`/chapters`)
+- Grid view of all chapters
+- Shows event count, years covered, keystone indicator
+- Click to read chapter narrative
+
+### Chapter Narrative (`/chapters/:id`)
+- Full reading experience for a chapter
+- Events displayed chronologically with narrative formatting
+- People, songs, artifacts, synchronicities shown per event
+- Previous/next chapter navigation
+
+### Export (`/export`)
+- Archive statistics dashboard
+- JSON export: Complete data backup
+- Markdown export: Formatted memoir draft
+- Keystone events marked with ⭐ in exports
+
+## Navigation Updates
+Added to main nav: Timeline, Chapters, Search, Export
+
+## Architectural Decisions
+
+### Search Implementation
+Uses SQLite `contains` for case-insensitive substring matching.
+Limited to 20 results per entity type for performance.
+
+### Timeline Grouping
+Events without dates are excluded from timeline.
+Events grouped by year for visual clarity.
+
+### Export Formats
+- **JSON**: Machine-readable, includes all relationships
+- **Markdown**: Human-readable, organized by chapter, formatted for editing
+
+### No AI Processing
+Phase 3 maintains the Golden Rule: no AI summarization or interpretation.
+All search is literal string matching, no semantic search.
+
 END OF SYSTEM PROMPT

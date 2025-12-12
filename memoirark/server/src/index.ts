@@ -10,6 +10,10 @@ import { personRoutes } from './routes/persons';
 import { artifactRoutes } from './routes/artifacts';
 import { synchronicityRoutes } from './routes/synchronicities';
 import { linkRoutes } from './routes/links';
+import { timelineRoutes } from './routes/timeline';
+import { searchRoutes } from './routes/search';
+import { narrativeRoutes } from './routes/narrative';
+import { exportRoutes } from './routes/export';
 
 dotenv.config();
 
@@ -30,6 +34,10 @@ app.use('/api/persons', personRoutes);
 app.use('/api/artifacts', artifactRoutes);
 app.use('/api/synchronicities', synchronicityRoutes);
 app.use('/api', linkRoutes);
+app.use('/api/timeline', timelineRoutes);
+app.use('/api/search', searchRoutes);
+app.use('/api/narrative', narrativeRoutes);
+app.use('/api/export', exportRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

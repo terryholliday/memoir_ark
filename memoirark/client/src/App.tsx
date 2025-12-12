@@ -14,6 +14,11 @@ import ArtifactForm from './pages/ArtifactForm'
 import SynchronicitiesList from './pages/SynchronicitiesList'
 import SynchronicityDetail from './pages/SynchronicityDetail'
 import SynchronicityForm from './pages/SynchronicityForm'
+import Timeline from './pages/Timeline'
+import Search from './pages/Search'
+import ChaptersList from './pages/ChaptersList'
+import ChapterNarrative from './pages/ChapterNarrative'
+import Export from './pages/Export'
 
 function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -57,6 +62,11 @@ function App() {
           <Route path="/synchronicities/new" element={<SynchronicityForm />} />
           <Route path="/synchronicities/:id" element={<SynchronicityDetail />} />
           <Route path="/synchronicities/:id/edit" element={<SynchronicityForm />} />
+          <Route path="/timeline" element={<Timeline />} />
+          <Route path="/search" element={<Search />} />
+          <Route path="/chapters" element={<ChaptersList />} />
+          <Route path="/chapters/:id" element={<ChapterNarrative />} />
+          <Route path="/export" element={<Export />} />
         </Routes>
       </Layout>
     </BrowserRouter>

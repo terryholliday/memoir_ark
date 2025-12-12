@@ -263,6 +263,88 @@ export const synchronicitiesApi = {
   },
 }
 
+// Phase 3 APIs
+export interface TimelineYear {
+  year: number
+  events: Event[]
+}
+
+export interface TimelineData {
+  totalEvents: number
+  yearRange: { start: number; end: number } | null
+  timeline: TimelineYear[]
+}
+
+export interface SearchResults {
+  query: string
+  totalResults: number
+  results: {
+    events: Event[]
+    persons: Person[]
+    artifacts: Artifact[]
+    synchronicities: Synchronicity[]
+    chapters: Chapter[]
+    songs: Song[]
+  }
+}
+
+export interface NarrativeChapter extends Chapter {
+  eventCount: number
+  events: Event[]
+  prevChapter?: { id: string; number: number; title: string } | null
+  nextChapter?: { id: string; number: number; title: string } | null
+}
+
+export interface ExportStats {
+  events: number
+  eventsWithDates: number
+  keystoneEvents: number
+  persons: number
+  artifacts: number
+  synchronicities: number
+  chapters: number
+  songs: number
+  dateRange: { earliest: string | null; latest: string | null }
+}
+
+export const timelineApi = {
+  get: async (params?: { startYear?: number; endYear?: number; chapterId?: string; traumaCycleId?: string }): Promise<TimelineData> => {
+    const { data } = await api.get('/timeline', { params })
+    return data
+  },
+}
+
+export const searchApi = {
+  search: async (q: string, type?: string): Promise<SearchResults> => {
+    const { data } = await api.get('/search', { params: { q, type } })
+    return data
+  },
+}
+
+export const narrativeApi = {
+  getChapters: async (): Promise<NarrativeChapter[]> => {
+    const { data } = await api.get('/narrative/chapters')
+    return data
+  },
+  getChapter: async (id: string): Promise<NarrativeChapter> => {
+    const { data } = await api.get(`/narrative/chapters/${id}`)
+    return data
+  },
+}
+
+export const exportApi = {
+  getStats: async (): Promise<ExportStats> => {
+    const { data } = await api.get('/export/stats')
+    return data
+  },
+  downloadJson: () => {
+    window.open('/api/export/json', '_blank')
+  },
+  downloadMarkdown: () => {
+    window.open('/api/export/markdown', '_blank')
+  },
+}
+
 export const linksApi = {
   // Event ↔ Person
   linkPersonToEvent: async (eventId: string, personId: string) => {
