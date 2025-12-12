@@ -1,18 +1,55 @@
 import { useState, useRef } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { uploadsApi } from '@/lib/api'
+import { uploadsApi, tagsApi } from '@/lib/api'
+import ContextAssistant from '@/components/ContextAssistant'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Upload, FileAudio, X, Check, Loader2 } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Upload, FileAudio, X, Check, Loader2, Sparkles, Plus, Tag } from 'lucide-react'
 
 interface FileWithPreview {
   file: File
   id: string
   status: 'pending' | 'uploading' | 'success' | 'error'
   error?: string
+  artifactId?: string
+}
+
+interface SuggestedTag {
+  name: string
+  reason: string
+}
+
+const SOURCE_TAG_SUGGESTIONS: Record<string, SuggestedTag[]> = {
+  'therapy-sessions': [
+    { name: 'healing', reason: 'Therapy session' },
+    { name: 'self-reflection', reason: 'Therapy content' },
+    { name: 'growth', reason: 'Personal development' },
+    { name: 'trauma', reason: 'Processing experiences' },
+    { name: 'insight', reason: 'Therapeutic insights' },
+  ],
+  'voicemail': [
+    { name: 'communication', reason: 'Voice message' },
+    { name: 'family', reason: 'Personal message' },
+    { name: 'relationship', reason: 'Connection' },
+    { name: 'memory', reason: 'Preserved moment' },
+  ],
+  'interview': [
+    { name: 'oral-history', reason: 'Interview recording' },
+    { name: 'testimony', reason: 'Personal account' },
+    { name: 'memory', reason: 'Recorded recollection' },
+  ],
+  'recording': [
+    { name: 'audio-diary', reason: 'Personal recording' },
+    { name: 'memory', reason: 'Captured moment' },
+    { name: 'reflection', reason: 'Personal thoughts' },
+  ],
+  'other': [
+    { name: 'audio', reason: 'Audio artifact' },
+    { name: 'archive', reason: 'Preserved content' },
+  ],
 }
 
 export default function AudioUpload() {
@@ -22,6 +59,21 @@ export default function AudioUpload() {
   const [files, setFiles] = useState<FileWithPreview[]>([])
   const [sourceSystem, setSourceSystem] = useState('therapy-sessions')
   const [isUploading, setIsUploading] = useState(false)
+  const [showTagReview, setShowTagReview] = useState(false)
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [dismissedTags, setDismissedTags] = useState<string[]>([])
+  const [showContextAssistant, setShowContextAssistant] = useState(false)
+  const [contextAnswers, setContextAnswers] = useState<Record<string, string>>({})
+
+  useQuery({
+    queryKey: ['tags'],
+    queryFn: tagsApi.getAll,
+  })
+
+  const suggestedTags = SOURCE_TAG_SUGGESTIONS[sourceSystem] || []
+  const availableSuggestions = suggestedTags.filter(
+    (t) => !selectedTags.includes(t.name) && !dismissedTags.includes(t.name)
+  )
 
   const uploadMutation = useMutation({
     mutationFn: async (fileItem: FileWithPreview) => {
@@ -214,13 +266,143 @@ export default function AudioUpload() {
         </Button>
       </div>
 
-      {successCount > 0 && !isUploading && pendingCount === 0 && (
+      {successCount > 0 && !isUploading && pendingCount === 0 && !showTagReview && !showContextAssistant && (
         <Card className="border-green-500">
           <CardContent className="py-4">
-            <div className="flex items-center gap-2 text-green-600">
-              <Check className="h-5 w-5" />
-              <span>All files uploaded successfully!</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-green-600">
+                <Check className="h-5 w-5" />
+                <span>All files uploaded successfully!</span>
+              </div>
+              <Button onClick={() => setShowContextAssistant(true)} size="sm">
+                Add Context
+              </Button>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {showContextAssistant && !showTagReview && (
+        <ContextAssistant
+          contentType="audio"
+          sourceType={sourceSystem}
+          contentSummary={`${successCount} ${sourceSystem.replace('-', ' ')} file${successCount > 1 ? 's' : ''}`}
+          onAnswersComplete={(answers) => {
+            setContextAnswers(answers)
+            setShowContextAssistant(false)
+            setShowTagReview(true)
+          }}
+          onSkip={() => {
+            setShowContextAssistant(false)
+            setShowTagReview(true)
+          }}
+        />
+      )}
+
+      {showTagReview && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-primary" />
+              Suggested Tags for Your Uploads
+            </CardTitle>
+            <CardDescription>
+              Based on uploading {sourceSystem.replace('-', ' ')}, we suggest these tags. 
+              Accept the ones that fit, dismiss the rest.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {selectedTags.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Accepted Tags</Label>
+                <div className="flex flex-wrap gap-2">
+                  {selectedTags.map((tag) => (
+                    <Badge key={tag} className="bg-primary/10 text-primary hover:bg-primary/20">
+                      {tag}
+                      <button
+                        onClick={() => setSelectedTags((prev) => prev.filter((t) => t !== tag))}
+                        className="ml-1 hover:text-destructive"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {availableSuggestions.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Suggestions</Label>
+                <div className="space-y-2">
+                  {availableSuggestions.map((suggestion) => (
+                    <div
+                      key={suggestion.name}
+                      className="flex items-center justify-between p-3 bg-muted rounded-lg"
+                    >
+                      <div>
+                        <span className="font-medium">{suggestion.name}</span>
+                        <span className="text-sm text-muted-foreground ml-2">
+                          — {suggestion.reason}
+                        </span>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setSelectedTags((prev) => [...prev, suggestion.name])}
+                        >
+                          <Plus className="w-4 h-4 mr-1" />
+                          Accept
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setDismissedTags((prev) => [...prev, suggestion.name])}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {availableSuggestions.length === 0 && selectedTags.length === 0 && (
+              <p className="text-muted-foreground text-center py-4">
+                All suggestions reviewed. You can add custom tags when editing artifacts.
+              </p>
+            )}
+
+            <div className="flex gap-3 pt-4 border-t">
+              <Button
+                onClick={() => {
+                  setShowTagReview(false)
+                  navigate('/artifacts')
+                }}
+                className="flex-1"
+              >
+                Done — Go to Artifacts
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowTagReview(false)
+                  setSelectedTags([])
+                  setDismissedTags([])
+                  setFiles([])
+                }}
+              >
+                Upload More
+              </Button>
+            </div>
+
+            {selectedTags.length > 0 && (
+              <p className="text-xs text-muted-foreground text-center">
+                Tags will be available when you link these artifacts to events
+              </p>
+            )}
           </CardContent>
         </Card>
       )}

@@ -1,6 +1,6 @@
 import { ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Moon, Sun, Home, Calendar, BookOpen, Users, FileText, Sparkles, Clock, Search, Download, Tag, FolderOpen, Filter, Upload, Music, RotateCcw } from 'lucide-react'
+import { Moon, Sun, Home, Calendar, BookOpen, Users, FileText, Sparkles, Clock, Search, Download, Tag, FolderOpen, Filter, Upload, Music, RotateCcw, HelpCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   Tooltip,
@@ -35,6 +35,7 @@ export default function Layout({ children, theme, toggleTheme }: LayoutProps) {
     { path: '/manage/chapters', label: 'Edit Chapters', icon: BookOpen },
     { path: '/manage/trauma-cycles', label: 'Edit Cycles', icon: RotateCcw },
     { path: '/manage/songs', label: 'Edit Songs', icon: Music },
+    { path: '/guide', label: 'User Guide', icon: HelpCircle },
   ]
 
   return (

@@ -15,6 +15,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ArrowLeft, Save } from 'lucide-react'
+import TagSuggestions from '@/components/TagSuggestions'
+import ContextAssistant from '@/components/ContextAssistant'
 
 const ARTIFACT_TYPES = ['journal', 'email', 'photo', 'chatlog', 'document', 'video', 'audio', 'other']
 
@@ -32,6 +34,9 @@ export default function ArtifactForm() {
     transcribedText: null,
     importedFrom: null,
   })
+
+  const [suggestedTagsInput, setSuggestedTagsInput] = useState('')
+  const [showContextAssistant, setShowContextAssistant] = useState(false)
 
   const { data: artifact, isLoading: artifactLoading } = useQuery({
     queryKey: ['artifact', id],
@@ -184,7 +189,54 @@ export default function ArtifactForm() {
               <p className="text-xs text-muted-foreground">
                 For journals, emails, or chat logs, paste the full text content here
               </p>
+              <TagSuggestions
+                title={formData.shortDescription || ''}
+                summary={formData.type + ' ' + formData.sourceSystem}
+                notes={formData.transcribedText || ''}
+                currentTags={suggestedTagsInput.split(',').map(t => t.trim()).filter(Boolean)}
+                onAddTag={(tag) => {
+                  const current = suggestedTagsInput.trim()
+                  setSuggestedTagsInput(current ? `${current}, ${tag}` : tag)
+                }}
+              />
+              {suggestedTagsInput && (
+                <div className="text-sm text-muted-foreground">
+                  <strong>Suggested tags:</strong> {suggestedTagsInput}
+                  <p className="text-xs mt-1">These tags will be available when linking this artifact to events</p>
+                </div>
+              )}
+              {formData.type && !showContextAssistant && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowContextAssistant(true)}
+                  className="mt-2"
+                >
+                  Add more context about this {formData.type}
+                </Button>
+              )}
             </div>
+
+            {showContextAssistant && (
+              <ContextAssistant
+                contentType={formData.type === 'photo' ? 'photo' : formData.type === 'document' || formData.type === 'journal' || formData.type === 'email' ? 'document' : 'artifact'}
+                contentSummary={formData.shortDescription || `this ${formData.type}`}
+                onAnswersComplete={(answers) => {
+                  let additionalText = formData.transcribedText || ''
+                  additionalText += '\n\n--- Context ---\n'
+                  Object.entries(answers).forEach(([key, value]) => {
+                    if (value) additionalText += `${key}: ${value}\n`
+                  })
+                  setFormData((prev) => ({
+                    ...prev,
+                    transcribedText: additionalText,
+                  }))
+                  setShowContextAssistant(false)
+                }}
+                onSkip={() => setShowContextAssistant(false)}
+              />
+            )}
 
             <div className="flex justify-end gap-4">
               <Button type="button" variant="outline" onClick={() => navigate('/artifacts')}>

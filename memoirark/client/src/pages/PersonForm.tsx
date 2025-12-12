@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { ArrowLeft, Save } from 'lucide-react'
+import TagSuggestions from '@/components/TagSuggestions'
 
 export default function PersonForm() {
   const { id } = useParams<{ id: string }>()
@@ -154,6 +155,13 @@ export default function PersonForm() {
                 placeholder="Additional notes about this person..."
                 rows={6}
                 className="font-narrative"
+              />
+              <TagSuggestions
+                title={formData.name}
+                summary={`${formData.role} ${formData.relationshipType}`}
+                notes={formData.notes || ''}
+                currentTags={[]}
+                onAddTag={() => {}}
               />
             </div>
 

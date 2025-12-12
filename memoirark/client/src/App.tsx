@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import Layout from './components/Layout'
 import WelcomeModal from './components/WelcomeModal'
 import OnboardingTour, { useTourState } from './components/OnboardingTour'
+import NoahGuide from './components/NoahGuide'
 import Dashboard from './pages/Dashboard'
 import EventList from './pages/EventList'
 import EventForm from './pages/EventForm'
@@ -30,6 +31,8 @@ import AudioUpload from './pages/AudioUpload'
 import ChaptersManage from './pages/ChaptersManage'
 import TraumaCyclesManage from './pages/TraumaCyclesManage'
 import SongsManage from './pages/SongsManage'
+import UserGuide from './pages/UserGuide'
+import NoahWizardPage from './pages/NoahWizardPage'
 
 function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -74,6 +77,7 @@ function App() {
       {showTour && <OnboardingTour onComplete={endTour} />}
       {showWelcome && !showTour && <WelcomeModal onClose={handleCloseWelcome} />}
       <Layout theme={theme} toggleTheme={toggleTheme}>
+        <NoahGuide />
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/events" element={<EventList />} />
@@ -106,6 +110,8 @@ function App() {
           <Route path="/manage/chapters" element={<ChaptersManage />} />
           <Route path="/manage/trauma-cycles" element={<TraumaCyclesManage />} />
           <Route path="/manage/songs" element={<SongsManage />} />
+          <Route path="/guide" element={<UserGuide />} />
+          <Route path="/wizard" element={<NoahWizardPage />} />
         </Routes>
       </Layout>
     </BrowserRouter>

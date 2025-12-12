@@ -15,6 +15,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ArrowLeft, Save } from 'lucide-react'
+import TagSuggestions from '@/components/TagSuggestions'
+import ContextAssistant from '@/components/ContextAssistant'
+import NoahWizard from '@/components/NoahWizard'
 
 export default function EventForm() {
   const { id } = useParams<{ id: string }>()
@@ -34,6 +37,8 @@ export default function EventForm() {
   })
 
   const [emotionTagsInput, setEmotionTagsInput] = useState('')
+  const [showContextAssistant, setShowContextAssistant] = useState(false)
+  const [showNoahWizard, setShowNoahWizard] = useState(false)
 
   const { data: event, isLoading: eventLoading } = useQuery({
     queryKey: ['event', id],
@@ -192,6 +197,16 @@ export default function EventForm() {
                   onChange={(e) => setEmotionTagsInput(e.target.value)}
                   placeholder="betrayal, fear, relief (comma-separated)"
                 />
+                <TagSuggestions
+                  title={formData.title}
+                  summary={formData.summary || ''}
+                  notes={formData.notes || ''}
+                  currentTags={emotionTagsInput.split(',').map(t => t.trim()).filter(Boolean)}
+                  onAddTag={(tag) => {
+                    const current = emotionTagsInput.trim()
+                    setEmotionTagsInput(current ? `${current}, ${tag}` : tag)
+                  }}
+                />
               </div>
 
               <div className="space-y-2">
@@ -279,7 +294,66 @@ export default function EventForm() {
               <p className="text-xs text-muted-foreground">
                 Use this field for longer narrative descriptions
               </p>
+              {(formData.notes?.length || 0) > 50 && !showContextAssistant && (
+                <div className="flex gap-2 mt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowContextAssistant(true)}
+                  >
+                    Quick Context
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="sm"
+                    onClick={() => setShowNoahWizard(true)}
+                    className="bg-amber-600 hover:bg-amber-700"
+                  >
+                    🧔 Deep Dive with Noah
+                  </Button>
+                </div>
+              )}
             </div>
+
+            {showContextAssistant && (
+              <ContextAssistant
+                contentType="event"
+                contentSummary={formData.title || 'this event'}
+                onAnswersComplete={(answers) => {
+                  const enrichedNotes = formData.notes || ''
+                  let additionalContext = '\n\n--- Context ---\n'
+                  if (answers.before) additionalContext += `What led up to this: ${answers.before}\n`
+                  if (answers.feelings) additionalContext += `How I felt: ${answers.feelings}\n`
+                  if (answers.others) additionalContext += `Others involved: ${answers.others}\n`
+                  if (answers.aftermath) additionalContext += `What happened after: ${answers.aftermath}\n`
+                  if (answers.meaning) additionalContext += `What this means to me now: ${answers.meaning}\n`
+                  
+                  setFormData((prev) => ({
+                    ...prev,
+                    notes: enrichedNotes + additionalContext,
+                  }))
+                  setShowContextAssistant(false)
+                }}
+                onSkip={() => setShowContextAssistant(false)}
+              />
+            )}
+
+            {showNoahWizard && (
+              <NoahWizard
+                topic={formData.title || 'this memory'}
+                initialContent={formData.notes || ''}
+                onComplete={(enrichedContent) => {
+                  setFormData((prev) => ({
+                    ...prev,
+                    notes: enrichedContent,
+                  }))
+                  setShowNoahWizard(false)
+                }}
+                onCancel={() => setShowNoahWizard(false)}
+              />
+            )}
 
             <div className="flex justify-end gap-4">
               <Button

@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ArrowLeft, Save } from 'lucide-react'
+import TagSuggestions from '@/components/TagSuggestions'
 
 const SYNCHRONICITY_TYPES = ['dream', 'omen', 'sign', 'symbolic event', 'coincidence', 'vision', 'other']
 
@@ -165,6 +166,13 @@ export default function SynchronicityForm() {
                 rows={8}
                 className="font-narrative"
                 required
+              />
+              <TagSuggestions
+                title={formData.type}
+                summary={formData.symbolicTag || ''}
+                notes={formData.description}
+                currentTags={[]}
+                onAddTag={() => {}}
               />
             </div>
 
