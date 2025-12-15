@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { timelineApi, chaptersApi, traumaCyclesApi, Event } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
@@ -10,12 +11,71 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Star, Users, FileText, Sparkles, Music } from 'lucide-react'
+import { Star, Users, FileText, Sparkles, Music, Wand2, Plus, Loader2, CheckCircle2 } from 'lucide-react'
+
+const API_BASE = 'http://localhost:3001/api'
+
+interface ChapterSuggestion {
+  title: string
+  theme: string
+  eventIds: string[]
+  reasoning: string
+}
+
+interface OrganizationResult {
+  suggestedChapters: ChapterSuggestion[]
+  unassignedEvents: string[]
+  overallNarrative: string
+}
 
 export default function Timeline() {
+  const queryClient = useQueryClient()
   const [filters, setFilters] = useState({
     chapterId: 'all',
     traumaCycleId: 'all',
+  })
+  const [showOrganizer, setShowOrganizer] = useState(false)
+  const [suggestions, setSuggestions] = useState<OrganizationResult | null>(null)
+  const [selectedChapters, setSelectedChapters] = useState<Set<number>>(new Set())
+
+  // AI chapter organization
+  const organizeMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${API_BASE}/chapters/organize`, { method: 'POST' })
+      if (!res.ok) throw new Error('Failed to get suggestions')
+      return res.json() as Promise<OrganizationResult>
+    },
+    onSuccess: (data) => {
+      setSuggestions(data)
+      setSelectedChapters(new Set(data.suggestedChapters.map((_, i) => i)))
+    },
+  })
+
+  const applyMutation = useMutation({
+    mutationFn: async () => {
+      if (!suggestions) throw new Error('No suggestions')
+      const chaptersToApply = suggestions.suggestedChapters
+        .filter((_, i) => selectedChapters.has(i))
+        .map(ch => ({
+          title: ch.title,
+          eventIds: ch.eventIds,
+          isNew: true,
+        }))
+      
+      const res = await fetch(`${API_BASE}/chapters/apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chapters: chaptersToApply }),
+      })
+      if (!res.ok) throw new Error('Failed to apply')
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['timeline'] })
+      queryClient.invalidateQueries({ queryKey: ['chapters'] })
+      setShowOrganizer(false)
+      setSuggestions(null)
+    },
   })
 
   const { data: timeline, isLoading } = useQuery({
@@ -47,17 +107,110 @@ export default function Timeline() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Timeline</h1>
-        <p className="text-muted-foreground">
-          Chronological view of your life events
-          {timeline?.yearRange && (
-            <span className="ml-2">
-              ({timeline.yearRange.start} — {timeline.yearRange.end})
-            </span>
-          )}
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Timeline</h1>
+          <p className="text-muted-foreground">
+            Chronological view of your life events
+            {timeline?.yearRange && (
+              <span className="ml-2">
+                ({timeline.yearRange.start} — {timeline.yearRange.end})
+              </span>
+            )}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button asChild>
+            <Link to="/events/new">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Event
+            </Link>
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              setShowOrganizer(true)
+              organizeMutation.mutate()
+            }}
+            disabled={organizeMutation.isPending}
+          >
+            {organizeMutation.isPending ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Wand2 className="w-4 h-4 mr-2" />
+            )}
+            Organize Chapters
+          </Button>
+        </div>
       </div>
+
+      {/* AI Chapter Organizer Modal */}
+      {showOrganizer && suggestions && (
+        <Card className="border-primary">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Wand2 className="w-5 h-5" />
+              AI Chapter Suggestions
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-muted-foreground">{suggestions.overallNarrative}</p>
+            
+            <div className="space-y-3">
+              {suggestions.suggestedChapters.map((ch, i) => (
+                <div 
+                  key={i}
+                  className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                    selectedChapters.has(i) 
+                      ? 'bg-primary/10 border-primary' 
+                      : 'hover:bg-muted/50'
+                  }`}
+                  onClick={() => {
+                    const newSet = new Set(selectedChapters)
+                    if (newSet.has(i)) {
+                      newSet.delete(i)
+                    } else {
+                      newSet.add(i)
+                    }
+                    setSelectedChapters(newSet)
+                  }}
+                >
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium">{ch.title}</h4>
+                    {selectedChapters.has(i) && <CheckCircle2 className="w-4 h-4 text-primary" />}
+                  </div>
+                  <p className="text-sm text-muted-foreground">{ch.theme}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{ch.eventIds.length} events • {ch.reasoning}</p>
+                </div>
+              ))}
+            </div>
+
+            {suggestions.unassignedEvents.length > 0 && (
+              <p className="text-sm text-muted-foreground">
+                {suggestions.unassignedEvents.length} events don't fit neatly into chapters yet.
+              </p>
+            )}
+
+            <div className="flex gap-2">
+              <Button 
+                onClick={() => applyMutation.mutate()}
+                disabled={applyMutation.isPending || selectedChapters.size === 0}
+              >
+                {applyMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : null}
+                Apply {selectedChapters.size} Chapters
+              </Button>
+              <Button variant="outline" onClick={() => {
+                setShowOrganizer(false)
+                setSuggestions(null)
+              }}>
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

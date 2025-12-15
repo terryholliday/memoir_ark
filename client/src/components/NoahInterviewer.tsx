@@ -5,7 +5,8 @@ import { eventsApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Send, Home, Save, RotateCcw, Mic, MicOff } from 'lucide-react'
-import { NOAH_SYSTEM_PROMPT, NOAH_OPENINGS, NOAH_CONFIG } from '@/ai/personas/NoahPersona'
+import { NOAH_SYSTEM_PROMPT, NOAH_OPENINGS, NOAH_CONFIG, NoahTurnOutput } from '@/ai/personas/NoahPersona'
+import RectificationWizard from './RectificationWizard'
 
 // ============================================
 // WEB SPEECH API TYPES
@@ -72,9 +73,26 @@ interface TimelineEvent {
   messageId: string
 }
 
+interface CapturedMemory {
+  turn_id: string
+  scene_id: string | null
+  approx_date: string | null
+  location: string | null
+  people: string[]
+  ghostwritten_text: string | null
+  scores: {
+    emotional_weight: number | null
+    narrative_impact: number | null
+    symbolic_density: number | null
+    unresolved_energy: number | null
+  }
+  chapter_theme: string | null
+}
+
 interface InterviewMemory {
   messages: Message[]
   timelineEvents: TimelineEvent[]
+  capturedMemories: CapturedMemory[]
   themes: string[]
   emotionalPeaks: string[]
   sessionStart: Date
@@ -318,12 +336,27 @@ export default function NoahInterviewer() {
   const [memory, setMemory] = useState<InterviewMemory>({
     messages: [],
     timelineEvents: [],
+    capturedMemories: [],
     themes: [],
     emotionalPeaks: [],
     sessionStart: new Date(),
   })
   const [currentNoahMessage, setCurrentNoahMessage] = useState<Message | null>(null)
   const [isSaved, setIsSaved] = useState(false)
+  const [showAstroSettings, setShowAstroSettings] = useState(false)
+  const [showRectification, setShowRectification] = useState(false)
+  const [birthData, setBirthData] = useState<{
+    date: string | null
+    time: string | null
+    place: string | null
+    astroEnabled: boolean
+  }>(() => {
+    const saved = localStorage.getItem('memoirark-birth-data')
+    if (saved) {
+      try { return JSON.parse(saved) } catch { /* ignore */ }
+    }
+    return { date: null, time: null, place: null, astroEnabled: false }
+  })
   const [isFirstVisit] = useState(() => {
     const visited = localStorage.getItem('memoirark-noah-visited')
     if (!visited) {
@@ -332,6 +365,7 @@ export default function NoahInterviewer() {
     }
     return false
   })
+  const hasGreetedRef = useRef(false)
 
   // Hooks
   const { displayedText, isTyping, simulateTyping, skipToEnd } = useTypingSimulation()
@@ -350,9 +384,10 @@ export default function NoahInterviewer() {
     }
   }, [transcript, clearTranscript])
 
-  // Initial greeting
+  // Initial greeting - only run once
   useEffect(() => {
-    if (memory.messages.length === 0) {
+    if (memory.messages.length === 0 && !hasGreetedRef.current) {
+      hasGreetedRef.current = true
       const greeting = isFirstVisit ? NOAH_OPENINGS.firstTime : NOAH_OPENINGS.returning
       
       setTimeout(() => {
@@ -407,24 +442,74 @@ export default function NoahInterviewer() {
     },
   })
 
+  // Parse Noah's JSON response and extract user-facing text + memory data
+  const parseNoahResponse = (rawResponse: string): { 
+    replyToUser: string; 
+    capturedMemory: CapturedMemory | null;
+    requestedUpload: 'photo' | 'document' | 'audio' | null;
+    activeMode: 'standard' | 'astro';
+  } => {
+    try {
+      // Try to parse as JSON (new protocol)
+      const parsed: NoahTurnOutput = JSON.parse(rawResponse)
+      
+      // Extract captured memory if status is 'capturing'
+      let capturedMemory: CapturedMemory | null = null
+      if (parsed.memory_data.status === 'capturing') {
+        capturedMemory = {
+          turn_id: parsed.turn_id,
+          scene_id: parsed.memory_data.scene_id,
+          approx_date: parsed.memory_data.approx_date,
+          location: parsed.memory_data.location,
+          people: parsed.memory_data.people,
+          ghostwritten_text: parsed.memory_data.ghostwritten_text,
+          scores: parsed.memory_data.scores,
+          chapter_theme: parsed.system_flags.chapter_theme,
+        }
+      }
+      
+      return {
+        replyToUser: parsed.reply_to_user,
+        capturedMemory,
+        requestedUpload: parsed.system_flags.requested_upload || null,
+        activeMode: parsed.system_flags.active_mode || 'standard',
+      }
+    } catch {
+      // If not valid JSON, treat as plain text (fallback mode)
+      return {
+        replyToUser: rawResponse,
+        capturedMemory: null,
+        requestedUpload: null,
+        activeMode: 'standard',
+      }
+    }
+  }
+
   // Generate Noah's response (this would connect to your LLM API)
-  const generateNoahResponse = async (userMessage: string, conversationContext: string): Promise<string> => {
+  const generateNoahResponse = async (userMessage: string, conversationContext: string): Promise<{ 
+    replyToUser: string; 
+    capturedMemory: CapturedMemory | null;
+    requestedUpload: 'photo' | 'document' | 'audio' | null;
+    activeMode: 'standard' | 'astro';
+  }> => {
     // In production, this would call your LLM API with:
     // - NOAH_SYSTEM_PROMPT as the system message
     // - conversationContext as the conversation history
     // - userMessage as the latest user input
     
-    // For now, we'll use a placeholder that demonstrates the expected behavior
-    // This should be replaced with actual API call
-    
     const apiEndpoint = '/api/ai/noah'
+    
+    // Include birth data for Astro Mode eligibility
+    const astroContext = birthData.astroEnabled && birthData.time && birthData.place
+      ? `\n\n[ASTRO MODE ENABLED - User birth data: ${birthData.date} at ${birthData.time} in ${birthData.place}. You may use astro overlay when relevant.]`
+      : ''
     
     try {
       const response = await fetch(apiEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          systemPrompt: NOAH_SYSTEM_PROMPT,
+          systemPrompt: NOAH_SYSTEM_PROMPT + astroContext,
           conversationHistory: conversationContext,
           userMessage,
         }),
@@ -432,15 +517,16 @@ export default function NoahInterviewer() {
       
       if (response.ok) {
         const data = await response.json()
-        return data.response
+        // Parse the response (handles both JSON protocol and plain text)
+        return parseNoahResponse(data.response)
       }
     } catch (error) {
       console.log('AI endpoint not available, using fallback')
     }
     
     // Fallback response pattern (demonstrates correct Noah behavior)
-    // This follows the Active Listening Loop: Reflect → Validate → Ask ONE question
-    return generateFallbackResponse(userMessage, memory)
+    const fallbackText = generateFallbackResponse(userMessage, memory)
+    return { replyToUser: fallbackText, capturedMemory: null, requestedUpload: null, activeMode: 'standard' }
   }
 
   const handleSend = async () => {
@@ -478,21 +564,31 @@ export default function NoahInterviewer() {
 
     setTimeout(async () => {
       try {
-        const response = await generateNoahResponse(userMessage.content, context)
+        const { replyToUser, capturedMemory, requestedUpload } = await generateNoahResponse(userMessage.content, context)
         
         setNoahState('speaking')
         const noahMessage: Message = {
           id: (Date.now() + 1).toString(),
           role: 'noah',
-          content: response,
+          content: replyToUser,
           timestamp: new Date(),
         }
         setCurrentNoahMessage(noahMessage)
 
-        simulateTyping(response, () => {
+        // Log upload request for future UI integration
+        if (requestedUpload) {
+          console.log(`📎 Noah requested artifact upload: ${requestedUpload}`)
+          // TODO: Trigger upload UI modal based on requestedUpload type
+        }
+
+        simulateTyping(replyToUser, () => {
           setMemory(prev => ({
             ...prev,
             messages: [...prev.messages, noahMessage],
+            // Store captured memory if present
+            capturedMemories: capturedMemory 
+              ? [...prev.capturedMemories, capturedMemory]
+              : prev.capturedMemories,
           }))
           setCurrentNoahMessage(null)
           setNoahState('listening')
@@ -535,6 +631,7 @@ export default function NoahInterviewer() {
     setMemory({
       messages: [],
       timelineEvents: [],
+      capturedMemories: [],
       themes: [],
       emotionalPeaks: [],
       sessionStart: new Date(),
@@ -613,9 +710,24 @@ export default function NoahInterviewer() {
             Exit
           </Button>
           
-          <div className="text-sm font-medium text-foreground/70 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-primary/60 animate-pulse" />
-            Conversation with Noah
+          <div className="flex items-center gap-3">
+            <div className="text-sm font-medium text-foreground/70 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-primary/60 animate-pulse" />
+              Conversation with Noah
+            </div>
+            
+            {/* Astro Mode Toggle */}
+            <button
+              onClick={() => setShowAstroSettings(true)}
+              className={`text-xs px-2 py-1 rounded-full transition-colors ${
+                birthData.astroEnabled && birthData.time && birthData.place
+                  ? 'bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              }`}
+              title="Astro Mode Settings"
+            >
+              ✧ {birthData.astroEnabled && birthData.time && birthData.place ? 'Astro On' : 'Astro'}
+            </button>
           </div>
           
           <div className="flex gap-2">
@@ -644,6 +756,138 @@ export default function NoahInterviewer() {
           </div>
         </div>
       </div>
+
+      {/* Astro Settings Modal */}
+      {showAstroSettings && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-card border rounded-xl shadow-xl max-w-md w-full mx-4 p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                ✧ Astro Mode
+              </h3>
+              <button 
+                onClick={() => setShowAstroSettings(false)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <p className="text-sm text-muted-foreground">
+              When enabled, Noah can overlay astrological timing context onto your memories—seeing life patterns through planetary cycles. This is optional and requires your exact birth data.
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm font-medium block mb-1">Birth Date</label>
+                <input
+                  type="date"
+                  value={birthData.date || ''}
+                  onChange={(e) => {
+                    const newData = { ...birthData, date: e.target.value || null }
+                    setBirthData(newData)
+                    localStorage.setItem('memoirark-birth-data', JSON.stringify(newData))
+                  }}
+                  className="w-full px-3 py-2 border rounded-lg bg-background"
+                />
+              </div>
+              
+              <div>
+                <label className="text-sm font-medium block mb-1">Birth Time (exact)</label>
+                <input
+                  type="time"
+                  value={birthData.time || ''}
+                  onChange={(e) => {
+                    const newData = { ...birthData, time: e.target.value || null }
+                    setBirthData(newData)
+                    localStorage.setItem('memoirark-birth-data', JSON.stringify(newData))
+                  }}
+                  className="w-full px-3 py-2 border rounded-lg bg-background"
+                />
+                <p className="text-xs text-muted-foreground mt-1">Required for accurate chart. Check your birth certificate.</p>
+              </div>
+              
+              <div>
+                <label className="text-sm font-medium block mb-1">Birth Place</label>
+                <input
+                  type="text"
+                  placeholder="City, Country"
+                  value={birthData.place || ''}
+                  onChange={(e) => {
+                    const newData = { ...birthData, place: e.target.value || null }
+                    setBirthData(newData)
+                    localStorage.setItem('memoirark-birth-data', JSON.stringify(newData))
+                  }}
+                  className="w-full px-3 py-2 border rounded-lg bg-background"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={birthData.astroEnabled}
+                  onChange={(e) => {
+                    const newData = { ...birthData, astroEnabled: e.target.checked }
+                    setBirthData(newData)
+                    localStorage.setItem('memoirark-birth-data', JSON.stringify(newData))
+                  }}
+                  className="w-4 h-4"
+                  disabled={!birthData.time || !birthData.place}
+                />
+                <span className="text-sm">Enable Astro Mode</span>
+              </label>
+              
+              {(!birthData.time || !birthData.place) && (
+                <span className="text-xs text-amber-600">Requires time & place</span>
+              )}
+            </div>
+
+            <div className="border-t pt-3 mt-2">
+              <p className="text-xs text-muted-foreground mb-2">Don't know your exact birth time?</p>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  setShowAstroSettings(false)
+                  setShowRectification(true)
+                }}
+                disabled={!birthData.date || !birthData.place}
+                className="w-full"
+              >
+                ✧ Try Birth Time Rectification
+              </Button>
+            </div>
+
+            <Button 
+              onClick={() => setShowAstroSettings(false)}
+              className="w-full"
+            >
+              Done
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Rectification Wizard */}
+      {showRectification && (
+        <RectificationWizard
+          birthDate={birthData.date}
+          birthPlace={birthData.place}
+          onComplete={(estimatedTime) => {
+            const newData = { ...birthData, time: estimatedTime }
+            setBirthData(newData)
+            localStorage.setItem('memoirark-birth-data', JSON.stringify(newData))
+            setShowRectification(false)
+            setShowAstroSettings(true)
+          }}
+          onCancel={() => {
+            setShowRectification(false)
+            setShowAstroSettings(true)
+          }}
+        />
+      )}
 
       {/* Messages - warm, spacious, inspiring */}
       <div className="flex-1 overflow-y-auto" onClick={handleSkipTyping}>
@@ -786,39 +1030,68 @@ function generateFallbackResponse(userMessage: string, memory: InterviewMemory):
   const text = userMessage.toLowerCase()
   const isShortResponse = userMessage.split(' ').length < 15
 
-  // Active Listening Loop: Reflect → Validate → Ask ONE question
+  // WARMUP PHASE (first 3-4 exchanges): Easy, rapport-building questions
+  // Like a good journalist: start with facts, build trust, THEN go emotional
+  
+  // Exchange 1: They answered "where did you grow up?"
+  if (messageCount === 1) {
+    return `${getReflection(userMessage)} That's a great place to start.
 
-  // Opening exchanges - establish safety
-  if (messageCount === 0) {
-    return `Thank you for sharing that with me. ${getReflection(userMessage)}
-
-What comes up for you when you sit with that memory?`
+What was it like growing up there? Paint me a little picture—what do you remember about the neighborhood, the feel of the place?`
   }
 
+  // Exchange 2: Building on their description
+  if (messageCount === 2) {
+    return `I can picture it. ${getReflection(userMessage)}
+
+Who were the important people in your world back then? Could be family, friends, neighbors—whoever comes to mind first.`
+  }
+
+  // Exchange 3: They've mentioned people - gentle bridge to relationships
+  if (messageCount === 3) {
+    if (containsPerson(text)) {
+      return `${getReflection(userMessage)} It sounds like they mattered to you.
+
+Tell me a little more about them. What stands out when you think of them?`
+    }
+    return `${getReflection(userMessage)}
+
+What's one thing from that time that you still carry with you today? Could be a lesson, a habit, a way of seeing things.`
+  }
+
+  // Exchange 4: Transition to slightly deeper territory
+  if (messageCount === 4) {
+    return `${getReflection(userMessage)} That's the kind of detail that brings a story to life.
+
+Now I'm curious—was there a moment growing up when things shifted for you? A time when you started to see the world differently?`
+  }
+
+  // DEEPENING PHASE (exchanges 5+): Now we can go deeper, trust is established
+
   // Short/vague response - use sensory grounding
-  if (isShortResponse && messageCount > 0) {
+  if (isShortResponse && messageCount > 4) {
     return `I hear you. ${getReflection(userMessage)}
 
 Take me back to that moment. What do you remember seeing around you?`
   }
 
-  // Emotional content detected
-  if (containsEmotion(text)) {
+  // Emotional content detected - now safe to explore
+  if (containsEmotion(text) && messageCount > 3) {
     const emotion = detectEmotion(text)
     return `${getEmotionalValidation(emotion)} ${getReflection(userMessage)}
 
 Where did you feel that in your body?`
   }
 
-  // Person mentioned
-  if (containsPerson(text)) {
+  // Person mentioned in deeper phase
+  if (containsPerson(text) && messageCount > 3) {
     return `${getReflection(userMessage)} It sounds like this person was significant.
 
 What did they mean to you during that time?`
   }
 
-  // Default deepening
-  const reflections = [
+  // Default deepening questions (rotate through)
+  const deepeningQuestions = [
     `${getReflection(userMessage)} There's something important there.
 
 What stayed with you after that?`,
@@ -830,9 +1103,17 @@ How did that shape who you became?`,
     `${getReflection(userMessage)} Thank you for trusting me with that.
 
 What do you know now that you didn't know then?`,
+
+    `${getReflection(userMessage)} That's a powerful memory.
+
+When you think about it now, what feelings come up?`,
+
+    `${getReflection(userMessage)} I appreciate you sharing that.
+
+Was there anyone else who witnessed this, or was it something you carried alone?`,
   ]
 
-  return reflections[messageCount % reflections.length]
+  return deepeningQuestions[(messageCount - 5) % deepeningQuestions.length]
 }
 
 function getReflection(text: string): string {

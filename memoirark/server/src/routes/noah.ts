@@ -28,6 +28,53 @@ noahRoutes.post('/noah', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'User message is required' });
     }
 
+    // Check for Google AI (Gemini) API key - PREFERRED
+    const googleAiKey = process.env.GOOGLE_AI_API_KEY;
+    
+    if (googleAiKey) {
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${googleAiKey}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              contents: [
+                {
+                  role: 'user',
+                  parts: [{ text: `${systemPrompt}\n\n---\n\nPrevious conversation:\n${conversationHistory}\n\nUser's latest message:\n${userMessage}` }],
+                },
+              ],
+              generationConfig: {
+                temperature: 0.8,
+                maxOutputTokens: 2048,
+              },
+            }),
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json() as { 
+            candidates: Array<{ content: { parts: Array<{ text: string }> } }> 
+          };
+          const noahResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          
+          if (noahResponse) {
+            console.log('✅ Noah response generated via Gemini');
+            return res.json({ response: noahResponse });
+          }
+        } else {
+          const errorData = await response.text();
+          console.error('Gemini API error:', response.status, errorData);
+        }
+      } catch (error) {
+        console.error('Google AI API error:', error);
+        // Fall through to other providers
+      }
+    }
+
     // Check for OpenAI API key
     const openaiKey = process.env.OPENAI_API_KEY;
     
@@ -56,6 +103,7 @@ noahRoutes.post('/noah', async (req: Request, res: Response) => {
           const noahResponse = data.choices[0]?.message?.content;
           
           if (noahResponse) {
+            console.log('✅ Noah response generated via OpenAI');
             return res.json({ response: noahResponse });
           }
         }
@@ -92,6 +140,7 @@ noahRoutes.post('/noah', async (req: Request, res: Response) => {
           const noahResponse = data.content[0]?.text;
           
           if (noahResponse) {
+            console.log('✅ Noah response generated via Anthropic');
             return res.json({ response: noahResponse });
           }
         }
@@ -112,17 +161,118 @@ noahRoutes.post('/noah', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/ai/rectify - Birth time rectification using life events
+noahRoutes.post('/rectify', async (req: Request, res: Response) => {
+  try {
+    const { birthDate, birthPlace, timeWindow, lifeEvents } = req.body;
+
+    if (!birthDate || !birthPlace || !lifeEvents || lifeEvents.length < 3) {
+      return res.status(400).json({ 
+        error: 'Requires birth date, place, and at least 3 life events' 
+      });
+    }
+
+    const googleAiKey = process.env.GOOGLE_AI_API_KEY;
+    
+    if (!googleAiKey) {
+      return res.status(500).json({ error: 'AI not configured' });
+    }
+
+    const prompt = `You are an expert astrologer performing birth time rectification.
+
+BIRTH DATA:
+- Date: ${birthDate}
+- Place: ${birthPlace}
+- Time Window: ${timeWindow.earliest} to ${timeWindow.latest}
+- Additional context: ${timeWindow.context || 'None provided'}
+
+LIFE EVENTS TO ANALYZE:
+${lifeEvents.map((e: { date: string; type: string; description: string }, i: number) => 
+  `${i + 1}. ${e.date} - ${e.type}: ${e.description}`
+).join('\n')}
+
+TASK:
+Analyze these life events and estimate the most likely birth time within the given window. Consider:
+- Saturn transits for career/structure events
+- Pluto transits for transformative events
+- Uranus transits for sudden changes
+- Jupiter transits for expansions/opportunities
+- Lunar progressions for emotional milestones
+
+Respond with ONLY valid JSON:
+{
+  "estimatedTime": "HH:MM",
+  "confidenceLevel": "low" | "medium" | "high",
+  "reasoning": "2-3 sentences explaining which transits correlate with which events",
+  "alternativeTimes": ["HH:MM", "HH:MM"],
+  "disclaimer": "Brief reminder that this is a hypothesis, not fact"
+}`;
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${googleAiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 1024,
+          },
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error('AI request failed');
+    }
+
+    const data = await response.json() as {
+      candidates: Array<{ content: { parts: Array<{ text: string }> } }>
+    };
+    const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!aiResponse) {
+      throw new Error('No AI response');
+    }
+
+    // Parse JSON from response
+    let jsonStr = aiResponse;
+    const jsonMatch = aiResponse.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (jsonMatch) {
+      jsonStr = jsonMatch[1];
+    }
+
+    const result = JSON.parse(jsonStr);
+    
+    // Ensure disclaimer exists
+    if (!result.disclaimer) {
+      result.disclaimer = 'This is an astrological hypothesis based on correlating life events with planetary transits. It should not be treated as factual or scientifically verified.';
+    }
+
+    res.json(result);
+
+  } catch (error) {
+    console.error('Rectification error:', error);
+    res.status(500).json({ error: 'Failed to process rectification' });
+  }
+});
+
 // GET /api/ai/noah/status - Check if AI is configured
 noahRoutes.get('/noah/status', (req: Request, res: Response) => {
+  const hasGoogleAI = !!process.env.GOOGLE_AI_API_KEY;
   const hasOpenAI = !!process.env.OPENAI_API_KEY;
   const hasAnthropic = !!process.env.ANTHROPIC_API_KEY;
   
+  const configured = hasGoogleAI || hasOpenAI || hasAnthropic;
+  const provider = hasGoogleAI ? 'gemini' : hasOpenAI ? 'openai' : hasAnthropic ? 'anthropic' : 'fallback';
+  
   res.json({
-    configured: hasOpenAI || hasAnthropic,
-    provider: hasOpenAI ? 'openai' : hasAnthropic ? 'anthropic' : 'fallback',
-    message: hasOpenAI || hasAnthropic 
-      ? 'AI is configured and ready' 
-      : 'Using fallback responses. Set OPENAI_API_KEY or ANTHROPIC_API_KEY for full AI capability.',
+    configured,
+    provider,
+    message: configured 
+      ? `AI is configured and ready (${provider})` 
+      : 'Using fallback responses. Set GOOGLE_AI_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY for full AI capability.',
   });
 });
 

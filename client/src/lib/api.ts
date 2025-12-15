@@ -652,6 +652,87 @@ export const messengerImportApi = {
   },
 }
 
+// SMS Import API
+export interface SmsConversationPreview {
+  contactName: string
+  phoneNumber: string
+  messageCount: number
+  dateRange: { earliest: string; latest: string }
+  preview: Array<{
+    sender: string
+    phoneNumber: string
+    timestamp: string
+    content: string
+    direction: 'sent' | 'received' | 'draft' | 'other'
+    hasMedia: boolean
+    isMms: boolean
+  }>
+}
+
+export interface SmsParseResult {
+  totalMessages: number
+  backupDate: string | null
+  conversationCount: number
+  conversations: SmsConversationPreview[]
+}
+
+export interface SmsImportResult {
+  success: boolean
+  totalMessages: number
+  results: {
+    peopleCreated: number
+    artifactsCreated: number
+    eventsCreated: number
+    conversationsImported: number
+  }
+}
+
+export interface SmsInstructions {
+  title: string
+  steps: Array<{ step: number; title: string; description: string; link?: string }>
+  notes: string[]
+  alternativeApps: Array<{ name: string; note: string }>
+}
+
+export const smsImportApi = {
+  getInstructions: async (): Promise<SmsInstructions> => {
+    const { data } = await api.get('/sms-import/instructions')
+    return data
+  },
+  parse: async (file: File): Promise<SmsParseResult> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    const { data } = await api.post('/sms-import/parse', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return data
+  },
+  import: async (
+    file: File,
+    options: { 
+      createPeople?: boolean
+      createArtifact?: boolean
+      groupByDay?: boolean
+      selectedConversations?: string[] | 'all'
+    }
+  ): Promise<SmsImportResult> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('createPeople', String(options.createPeople ?? true))
+    formData.append('createArtifact', String(options.createArtifact ?? true))
+    formData.append('groupByDay', String(options.groupByDay ?? true))
+    formData.append('selectedConversations', 
+      options.selectedConversations === 'all' 
+        ? 'all' 
+        : JSON.stringify(options.selectedConversations ?? [])
+    )
+    const { data } = await api.post('/sms-import/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return data
+  },
+}
+
 export const linksApi = {
   // Event ↔ Person
   linkPersonToEvent: async (eventId: string, personId: string) => {

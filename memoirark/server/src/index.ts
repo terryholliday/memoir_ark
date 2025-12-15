@@ -18,6 +18,9 @@ import { tagRoutes } from './routes/tags';
 import { collectionRoutes } from './routes/collections';
 import { uploadRoutes } from './routes/uploads';
 import { messengerImportRoutes } from './routes/messengerImport';
+import { smsImportRoutes } from './routes/smsImport';
+import { chatgptImportRoutes } from './routes/chatgptImport';
+import { chapterOrganizerRoutes } from './routes/chapterOrganizer';
 import { noahRoutes } from './routes/noah';
 
 dotenv.config();
@@ -47,6 +50,9 @@ app.use('/api/tags', tagRoutes);
 app.use('/api/collections', collectionRoutes);
 app.use('/api/uploads', uploadRoutes);
 app.use('/api/messenger-import', messengerImportRoutes);
+app.use('/api/sms-import', smsImportRoutes);
+app.use('/api/chatgpt-import', chatgptImportRoutes);
+app.use('/api/chapters', chapterOrganizerRoutes);
 app.use('/api/ai', noahRoutes);
 
 // Health check

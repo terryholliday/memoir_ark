@@ -10,72 +10,22 @@ interface NoahTip {
   mood: NoahMood
 }
 
-// Noah speaks with authority - commanding, baritone voice style
-const PAGE_TIPS: Record<string, NoahTip[]> = {
-  '/': [
-    { message: "I am Noah. I have been appointed to guide you in preserving your story. Your memories are precious cargo—let us build your ark together.", mood: 'welcoming' },
-    { message: "Every journey of a thousand miles begins with a single step. Create your first event, and we shall begin.", mood: 'encouraging' },
-    { message: "The rains will come and go, but your story will endure. Let us make it worthy of preservation.", mood: 'serious' },
-  ],
-  '/events': [
-    { message: "Events are the timbers of your ark. Each one strengthens the vessel that carries your legacy.", mood: 'serious' },
-    { message: "Mark your most transformative moments as Keystone events. These are the pillars of your narrative.", mood: 'encouraging' },
-    { message: "Do not rush. A well-built ark takes time. Record each event with the care it deserves.", mood: 'thinking' },
-  ],
-  '/events/new': [
-    { message: "What memory do you bring to me today? Speak it plainly, and I shall help you preserve it.", mood: 'welcoming' },
-    { message: "The details matter. Where were you? Who was there? How did it change you?", mood: 'thinking' },
-    { message: "I will suggest tags to help organize your thoughts. Trust the process.", mood: 'encouraging' },
-  ],
-  '/people': [
-    { message: "No one builds an ark alone. Who are the souls that have shaped your journey?", mood: 'thinking' },
-    { message: "Some people are pillars, others are passing waves. Both matter to your story.", mood: 'serious' },
-  ],
-  '/people/new': [
-    { message: "Tell me of this person. What role did they play in the chapters of your life?", mood: 'welcoming' },
-    { message: "Even those who wounded you deserve a place in your record. Truth is the foundation of memoir.", mood: 'serious' },
-  ],
-  '/artifacts': [
-    { message: "These are your relics—the physical evidence of a life lived. Guard them well.", mood: 'serious' },
-    { message: "A photograph, a letter, a recording... each one is a window to the past.", mood: 'thinking' },
-  ],
-  '/upload': [
-    { message: "You bring me recordings. Good. The voice carries truths that words on paper cannot.", mood: 'pleased' },
-    { message: "Once processed, I will help you extract the meaning from these sounds.", mood: 'encouraging' },
-  ],
-  '/chapters': [
-    { message: "Chapters are the rooms of your ark. How shall we arrange them?", mood: 'thinking' },
-    { message: "Some organize by time, others by theme. There is wisdom in both approaches.", mood: 'serious' },
-  ],
-  '/timeline': [
-    { message: "Behold your life laid out before you. What patterns do you see?", mood: 'serious' },
-    { message: "The gaps in your timeline are not empty—they are memories waiting to surface.", mood: 'thinking' },
-  ],
-  '/synchronicities': [
-    { message: "Ah, the mysterious threads that connect seemingly unrelated events. I know them well.", mood: 'thinking' },
-    { message: "Dreams, signs, meaningful coincidences—the universe speaks to those who listen.", mood: 'serious' },
-  ],
-  '/search': [
-    { message: "What do you seek? Speak, and I shall help you find it within your archive.", mood: 'welcoming' },
-    { message: "Search by emotion, by person, by place. Your memories are organized and waiting.", mood: 'encouraging' },
-  ],
-  '/export': [
-    { message: "The time has come to share your story with the world. Are you ready?", mood: 'serious' },
-    { message: "Export your work and take it to the next stage. Your memoir awaits its final form.", mood: 'encouraging' },
-  ],
-  '/guide': [
-    { message: "Wisdom is knowing what you do not know. You have come to the right place.", mood: 'pleased' },
-    { message: "Study these instructions well. I am always here when you need guidance.", mood: 'welcoming' },
-  ],
+// Contextual help - only shown when user explicitly clicks Noah or on first login
+const PAGE_HELP: Record<string, NoahTip> = {
+  '/': { message: "Welcome to MemoirArk. Start by creating events from your memories, or talk to me in the Interview section.", mood: 'welcoming' },
+  '/events': { message: "Events are the building blocks of your memoir. Click 'New Event' to add one.", mood: 'thinking' },
+  '/events/new': { message: "Fill in what you remember. The date, title, and a summary are most important.", mood: 'encouraging' },
+  '/people': { message: "Add the people who shaped your story. You can link them to events later.", mood: 'thinking' },
+  '/artifacts': { message: "Upload photos, documents, or recordings that connect to your memories.", mood: 'thinking' },
+  '/timeline': { message: "Your life events displayed chronologically. Click any event to see details.", mood: 'serious' },
+  '/search': { message: "Search across all your events, people, and artifacts.", mood: 'welcoming' },
+  '/export': { message: "Export your memoir as a document when you're ready to share it.", mood: 'encouraging' },
+  '/interview': { message: "I'll guide you through your memories with questions. Just answer honestly.", mood: 'welcoming' },
+  '/wizard': { message: "I'll guide you through your memories with questions. Just answer honestly.", mood: 'welcoming' },
+  '/import/messenger': { message: "Upload your Facebook Messenger export to preserve those conversations.", mood: 'thinking' },
+  '/import/sms': { message: "Upload your SMS backup to import text message conversations.", mood: 'thinking' },
+  '/import/chatgpt': { message: "Upload your ChatGPT export to bring AI conversations into your memoir.", mood: 'thinking' },
 }
-
-const IDLE_TIPS: NoahTip[] = [
-  { message: "I am here when you need me. Simply call upon me.", mood: 'welcoming' },
-  { message: "Every memory matters, no matter how small it may seem.", mood: 'thinking' },
-  { message: "Have you connected your events to the people and artifacts involved?", mood: 'encouraging' },
-  { message: "Use tags to track the emotional currents that run through your story.", mood: 'thinking' },
-  { message: "The best memoirs are built on honesty. Do not shy away from difficult truths.", mood: 'serious' },
-]
 
 function NoahAvatar({ mood, className = '' }: { mood: NoahMood; className?: string }) {
   // Eye and mouth expressions for different moods
@@ -185,45 +135,40 @@ export default function NoahGuide() {
   const location = useLocation()
   const [isOpen, setIsOpen] = useState(false)
   const [currentTip, setCurrentTip] = useState<NoahTip | null>(null)
-  const [tipIndex, setTipIndex] = useState(0)
-  const [hasSeenPage, setHasSeenPage] = useState<Set<string>>(new Set())
+  
+  // Only show on first ever login
+  const [hasShownWelcome] = useState(() => {
+    const shown = localStorage.getItem('memoirark-noah-guide-shown')
+    if (!shown) {
+      localStorage.setItem('memoirark-noah-guide-shown', 'true')
+      return false
+    }
+    return true
+  })
 
-  // Get tips for current page
-  const getPageTips = (): NoahTip[] => {
+  // Get help for current page
+  const getPageHelp = (): NoahTip => {
     const path = location.pathname
-    if (PAGE_TIPS[path]) return PAGE_TIPS[path]
+    if (PAGE_HELP[path]) return PAGE_HELP[path]
     const basePath = '/' + path.split('/')[1]
-    if (PAGE_TIPS[basePath]) return PAGE_TIPS[basePath]
-    return IDLE_TIPS
+    if (PAGE_HELP[basePath]) return PAGE_HELP[basePath]
+    return { message: "Click around to explore. I'm here if you need guidance.", mood: 'welcoming' }
   }
 
-  // Show Noah when page changes (first visit to each page)
+  // Show Noah only on first login (dashboard)
   useEffect(() => {
-    const tips = getPageTips()
-    const isNewPage = !hasSeenPage.has(location.pathname)
-    
-    if (isNewPage) {
-      setHasSeenPage(prev => new Set([...prev, location.pathname]))
-      setCurrentTip(tips[0])
-      setTipIndex(0)
+    if (!hasShownWelcome && location.pathname === '/') {
+      setCurrentTip(PAGE_HELP['/'])
       setIsOpen(true)
     }
-  }, [location.pathname])
-
-  const handleNextTip = () => {
-    const tips = getPageTips()
-    const nextIndex = (tipIndex + 1) % tips.length
-    setTipIndex(nextIndex)
-    setCurrentTip(tips[nextIndex])
-  }
+  }, [])
 
   const handleClose = () => {
     setIsOpen(false)
   }
 
   const handleSummonNoah = () => {
-    const tips = getPageTips()
-    setCurrentTip(tips[tipIndex])
+    setCurrentTip(getPageHelp())
     setIsOpen(true)
   }
 
@@ -275,13 +220,6 @@ export default function NoahGuide() {
             </div>
 
             <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleNextTip}
-              >
-                Another Word
-              </Button>
               <Button
                 size="sm"
                 onClick={handleClose}

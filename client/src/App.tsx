@@ -32,8 +32,9 @@ import ChaptersManage from './pages/ChaptersManage'
 import TraumaCyclesManage from './pages/TraumaCyclesManage'
 import SongsManage from './pages/SongsManage'
 import UserGuide from './pages/UserGuide'
-import NoahWizardPage from './pages/NoahWizardPage'
 import MessengerImport from './pages/MessengerImport'
+import SmsImport from './pages/SmsImport'
+import ChatGptImport from './pages/ChatGptImport'
 import NoahInterviewer from './components/NoahInterviewer'
 
 function App() {
@@ -113,8 +114,10 @@ function App() {
           <Route path="/manage/trauma-cycles" element={<TraumaCyclesManage />} />
           <Route path="/manage/songs" element={<SongsManage />} />
           <Route path="/guide" element={<UserGuide />} />
-          <Route path="/wizard" element={<NoahWizardPage />} />
+          <Route path="/wizard" element={<NoahInterviewer />} />
           <Route path="/import/messenger" element={<MessengerImport />} />
+          <Route path="/import/sms" element={<SmsImport />} />
+          <Route path="/import/chatgpt" element={<ChatGptImport />} />
           <Route path="/interview" element={<NoahInterviewer />} />
         </Routes>
       </Layout>
