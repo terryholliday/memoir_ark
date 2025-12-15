@@ -384,13 +384,86 @@ export default function NoahInterviewer() {
     }
   }, [transcript, clearTranscript])
 
+  // Generate personalized returning greeting
+  const generateReturningGreeting = async (): Promise<string> => {
+    try {
+      // Get last session summary from localStorage
+      const lastSession = localStorage.getItem('memoirark-last-session')
+      
+      // Fetch recent events for context
+      const eventsResponse = await fetch('http://localhost:3001/api/events?limit=5')
+      const recentEvents = eventsResponse.ok ? await eventsResponse.json() : []
+      
+      if (!lastSession && recentEvents.length === 0) {
+        return NOAH_OPENINGS.returning
+      }
+
+      // Build context for AI
+      const sessionData = lastSession ? JSON.parse(lastSession) : null
+      const eventSummaries = recentEvents.slice(0, 3).map((e: { title: string; summary?: string; emotionTags?: string[] }) => 
+        `"${e.title}"${e.summary ? ` - ${e.summary.slice(0, 100)}` : ''}${e.emotionTags?.length ? ` (${e.emotionTags.slice(0, 2).join(', ')})` : ''}`
+      ).join('; ')
+
+      const prompt = `You are Noah, a master interviewer combining Barbara Walters' precision with Oprah's empathy. A returning user just opened their memoir session.
+
+LAST SESSION (if available):
+${sessionData ? `
+- Topics discussed: ${sessionData.topics?.join(', ') || 'General life story'}
+- Emotional themes: ${sessionData.emotions?.join(', ') || 'Various'}
+- Last question asked: ${sessionData.lastQuestion || 'None recorded'}
+- Key people mentioned: ${sessionData.people?.join(', ') || 'None recorded'}
+` : 'No previous session data'}
+
+RECENT EVENTS IN THEIR MEMOIR:
+${eventSummaries || 'None yet'}
+
+Generate a warm, personalized greeting that:
+1. References something SPECIFIC from their last session or recent events
+2. Shows you remember and care about their story
+3. Ends with ONE evocative, open-ended question that picks up a thread or explores something they haven't fully unpacked
+
+Be warm but not sycophantic. Be specific, not generic. Channel Oprah's "I see you" energy.
+Keep it to 2-3 short paragraphs max. No JSON, just the greeting text.`
+
+      const response = await fetch('/api/ai/noah', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemPrompt: prompt,
+          conversationHistory: '',
+          userMessage: 'Generate returning greeting',
+        }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        // Handle both JSON protocol responses and plain text
+        let greeting = data.response
+        try {
+          const parsed = JSON.parse(greeting)
+          if (parsed.reply_to_user) greeting = parsed.reply_to_user
+        } catch { /* plain text response */ }
+        return greeting
+      }
+    } catch (error) {
+      console.log('Could not generate personalized greeting, using default')
+    }
+    
+    return NOAH_OPENINGS.returning
+  }
+
   // Initial greeting - only run once
   useEffect(() => {
     if (memory.messages.length === 0 && !hasGreetedRef.current) {
       hasGreetedRef.current = true
-      const greeting = isFirstVisit ? NOAH_OPENINGS.firstTime : NOAH_OPENINGS.returning
       
-      setTimeout(() => {
+      const showGreeting = async () => {
+        setNoahState('thinking')
+        
+        const greeting = isFirstVisit 
+          ? NOAH_OPENINGS.firstTime 
+          : await generateReturningGreeting()
+        
         setNoahState('speaking')
         const noahMessage: Message = {
           id: Date.now().toString(),
@@ -408,7 +481,9 @@ export default function NoahInterviewer() {
           setCurrentNoahMessage(null)
           setNoahState('listening')
         })
-      }, NOAH_CONFIG.thinkingDelay)
+      }
+      
+      setTimeout(showGreeting, NOAH_CONFIG.thinkingDelay)
     }
   }, [])
 
@@ -418,6 +493,33 @@ export default function NoahInterviewer() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['events'] })
       setIsSaved(true)
+      
+      // Save session summary for next time
+      const userMessages = memory.messages.filter(m => m.role === 'user')
+      const noahMessages = memory.messages.filter(m => m.role === 'noah')
+      const lastNoahQuestion = noahMessages.length > 0 
+        ? noahMessages[noahMessages.length - 1].content.split('?')[0] + '?'
+        : null
+      
+      // Extract topics and people from conversation
+      const allText = userMessages.map(m => m.content).join(' ')
+      const emotions = memory.capturedMemories
+        .flatMap(cm => Object.entries(cm.scores || {})
+          .filter(([_, v]) => v && v >= 3)
+          .map(([k]) => k))
+      const people = memory.capturedMemories.flatMap(cm => cm.people || [])
+      const topics = memory.capturedMemories
+        .map(cm => cm.chapter_theme)
+        .filter(Boolean)
+      
+      localStorage.setItem('memoirark-last-session', JSON.stringify({
+        date: new Date().toISOString(),
+        topics: topics.length > 0 ? topics : extractTopicsFromText(allText),
+        emotions: [...new Set(emotions)],
+        people: [...new Set(people)],
+        lastQuestion: lastNoahQuestion,
+        messageCount: userMessages.length,
+      }))
       
       // Noah's closing
       const closingMessage = "This conversation has been saved to your archive. What you've shared here—these are the threads of your story. They matter. Until next time."
@@ -1023,6 +1125,32 @@ function extractTitle(messages: Message[]): string {
   const firstUserMessage = messages.find(m => m.role === 'user')?.content || ''
   const words = firstUserMessage.split(' ').slice(0, 8).join(' ')
   return words.length > 5 ? words + '...' : 'Interview with Noah'
+}
+
+function extractTopicsFromText(text: string): string[] {
+  const topics: string[] = []
+  const lowerText = text.toLowerCase()
+  
+  // Common memoir topic keywords
+  const topicPatterns: Record<string, string[]> = {
+    'childhood': ['grew up', 'childhood', 'kid', 'young', 'school', 'parents', 'mom', 'dad', 'mother', 'father'],
+    'family': ['family', 'brother', 'sister', 'sibling', 'grandma', 'grandpa', 'aunt', 'uncle', 'cousin'],
+    'relationships': ['married', 'wedding', 'divorce', 'boyfriend', 'girlfriend', 'partner', 'love', 'relationship'],
+    'career': ['job', 'work', 'career', 'boss', 'company', 'business', 'promotion', 'fired', 'hired'],
+    'loss': ['died', 'death', 'passed away', 'funeral', 'grief', 'lost', 'miss'],
+    'health': ['sick', 'hospital', 'doctor', 'surgery', 'diagnosis', 'recovery', 'health'],
+    'travel': ['moved', 'travel', 'trip', 'vacation', 'country', 'city', 'lived in'],
+    'education': ['college', 'university', 'degree', 'graduated', 'teacher', 'professor'],
+    'milestones': ['born', 'birthday', 'anniversary', 'first time', 'achievement'],
+  }
+  
+  for (const [topic, keywords] of Object.entries(topicPatterns)) {
+    if (keywords.some(kw => lowerText.includes(kw))) {
+      topics.push(topic)
+    }
+  }
+  
+  return topics.slice(0, 3) // Max 3 topics
 }
 
 function generateFallbackResponse(userMessage: string, memory: InterviewMemory): string {
