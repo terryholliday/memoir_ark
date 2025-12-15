@@ -1,7 +1,8 @@
 import { ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Moon, Sun, Home, Calendar, BookOpen, Users, FileText, Sparkles, Clock, Search, Download, Tag, FolderOpen, Filter, Upload, Music, RotateCcw, HelpCircle, Feather } from 'lucide-react'
+import { Moon, Sun, Home, Calendar, BookOpen, Users, FileText, Sparkles, Clock, Search, Download, Tag, FolderOpen, Filter, Upload, Music, RotateCcw, HelpCircle, Feather, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/lib/auth'
 import {
   Tooltip,
   TooltipContent,
@@ -17,6 +18,7 @@ interface LayoutProps {
 
 export default function Layout({ children, theme, toggleTheme }: LayoutProps) {
   const location = useLocation()
+  const { user, logout } = useAuth()
 
   const navItems = [
     { path: '/', label: 'Dashboard', icon: Home },
@@ -96,6 +98,31 @@ export default function Layout({ children, theme, toggleTheme }: LayoutProps) {
                 {theme === 'dark' ? 'Light mode' : 'Dark mode'}
               </TooltipContent>
             </Tooltip>
+
+            {/* User menu */}
+            {user && (
+              <div className="flex items-center gap-2 ml-2 pl-2 border-l border-border/50">
+                {user.picture && (
+                  <img 
+                    src={user.picture} 
+                    alt={user.name || 'User'} 
+                    className="w-7 h-7 rounded-full"
+                  />
+                )}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={logout}
+                      className="inline-flex items-center justify-center rounded-lg p-2 transition-all duration-200 hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600"
+                      aria-label="Sign out"
+                    >
+                      <LogOut className="h-4 w-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">Sign out</TooltipContent>
+                </Tooltip>
+              </div>
+            )}
           </div>
         </header>
         <main className="container py-8">{children}</main>

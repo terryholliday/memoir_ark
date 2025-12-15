@@ -24,6 +24,7 @@ import { chapterOrganizerRoutes } from './routes/chapterOrganizer';
 import { memoirExportRoutes } from './routes/memoirExport';
 import { noahRoutes } from './routes/noah';
 import { cloudStorageRoutes } from './routes/cloudStorage';
+import { authRoutes } from './routes/auth';
 
 dotenv.config();
 
@@ -58,6 +59,7 @@ app.use('/api/chapters', chapterOrganizerRoutes);
 app.use('/api/memoir', memoirExportRoutes);
 app.use('/api/ai', noahRoutes);
 app.use('/api/cloud', cloudStorageRoutes);
+app.use('/api/auth', authRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

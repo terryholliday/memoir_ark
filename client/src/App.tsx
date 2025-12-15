@@ -4,6 +4,9 @@ import Layout from './components/Layout'
 import WelcomeModal from './components/WelcomeModal'
 import OnboardingTour, { useTourState } from './components/OnboardingTour'
 import NoahGuide from './components/NoahGuide'
+import ProtectedRoute from './components/ProtectedRoute'
+import Login from './pages/Login'
+import LoginCallback from './pages/LoginCallback'
 import Dashboard from './pages/Dashboard'
 import EventList from './pages/EventList'
 import EventForm from './pages/EventForm'
@@ -83,56 +86,67 @@ function App() {
 
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      {showTour && <OnboardingTour onComplete={endTour} />}
-      {showWelcome && !showTour && <WelcomeModal onClose={handleCloseWelcome} />}
-      <Layout theme={theme} toggleTheme={toggleTheme}>
-        <NoahGuide />
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/events" element={<EventList />} />
-          <Route path="/events/new" element={<EventForm />} />
-          <Route path="/events/:id" element={<EventDetail />} />
-          <Route path="/events/:id/edit" element={<EventForm />} />
-          <Route path="/people" element={<PeopleList />} />
-          <Route path="/people/new" element={<PersonForm />} />
-          <Route path="/people/:id" element={<PersonDetail />} />
-          <Route path="/people/:id/edit" element={<PersonForm />} />
-          <Route path="/artifacts" element={<ArtifactsList />} />
-          <Route path="/artifacts/new" element={<ArtifactForm />} />
-          <Route path="/artifacts/:id" element={<ArtifactDetail />} />
-          <Route path="/artifacts/:id/edit" element={<ArtifactForm />} />
-          <Route path="/synchronicities" element={<SynchronicitiesList />} />
-          <Route path="/synchronicities/new" element={<SynchronicityForm />} />
-          <Route path="/synchronicities/:id" element={<SynchronicityDetail />} />
-          <Route path="/synchronicities/:id/edit" element={<SynchronicityForm />} />
-          <Route path="/timeline" element={<Timeline />} />
-          <Route path="/search" element={<Search />} />
-          <Route path="/chapters" element={<ChaptersList />} />
-          <Route path="/chapters/:id" element={<ChapterNarrative />} />
-          <Route path="/export" element={<Export />} />
-          <Route path="/tags" element={<TagsList />} />
-          <Route path="/tags/:id" element={<TagDetail />} />
-          <Route path="/collections" element={<CollectionsList />} />
-          <Route path="/collections/:id" element={<CollectionDetail />} />
-          <Route path="/query" element={<QueryBuilder />} />
-          <Route path="/upload" element={<AudioUpload />} />
-          <Route path="/manage/chapters" element={<ChaptersManage />} />
-          <Route path="/manage/trauma-cycles" element={<TraumaCyclesManage />} />
-          <Route path="/manage/songs" element={<SongsManage />} />
-          <Route path="/guide" element={<UserGuide />} />
-          <Route path="/wizard" element={<NoahInterviewer />} />
-          <Route path="/import/messenger" element={<MessengerImport />} />
-          <Route path="/import/sms" element={<SmsImport />} />
-          <Route path="/import/chatgpt" element={<ChatGptImport />} />
-          <Route path="/memoir" element={<MemoirExport />} />
-          <Route path="/photo-memory" element={<PhotoMemory />} />
-          <Route path="/family-tree" element={<FamilyTree />} />
-          <Route path="/voice-capture" element={<VoiceCapture />} />
-          <Route path="/collaborate" element={<FamilyCollaboration />} />
-          <Route path="/import/cloud" element={<CloudImport />} />
-          <Route path="/interview" element={<NoahInterviewer />} />
-        </Routes>
-      </Layout>
+      <Routes>
+        {/* Public routes */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/login/callback" element={<LoginCallback />} />
+        
+        {/* Protected routes */}
+        <Route path="/*" element={
+          <ProtectedRoute>
+            {showTour && <OnboardingTour onComplete={endTour} />}
+            {showWelcome && !showTour && <WelcomeModal onClose={handleCloseWelcome} />}
+            <Layout theme={theme} toggleTheme={toggleTheme}>
+              <NoahGuide />
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/events" element={<EventList />} />
+                <Route path="/events/new" element={<EventForm />} />
+                <Route path="/events/:id" element={<EventDetail />} />
+                <Route path="/events/:id/edit" element={<EventForm />} />
+                <Route path="/people" element={<PeopleList />} />
+                <Route path="/people/new" element={<PersonForm />} />
+                <Route path="/people/:id" element={<PersonDetail />} />
+                <Route path="/people/:id/edit" element={<PersonForm />} />
+                <Route path="/artifacts" element={<ArtifactsList />} />
+                <Route path="/artifacts/new" element={<ArtifactForm />} />
+                <Route path="/artifacts/:id" element={<ArtifactDetail />} />
+                <Route path="/artifacts/:id/edit" element={<ArtifactForm />} />
+                <Route path="/synchronicities" element={<SynchronicitiesList />} />
+                <Route path="/synchronicities/new" element={<SynchronicityForm />} />
+                <Route path="/synchronicities/:id" element={<SynchronicityDetail />} />
+                <Route path="/synchronicities/:id/edit" element={<SynchronicityForm />} />
+                <Route path="/timeline" element={<Timeline />} />
+                <Route path="/search" element={<Search />} />
+                <Route path="/chapters" element={<ChaptersList />} />
+                <Route path="/chapters/:id" element={<ChapterNarrative />} />
+                <Route path="/export" element={<Export />} />
+                <Route path="/tags" element={<TagsList />} />
+                <Route path="/tags/:id" element={<TagDetail />} />
+                <Route path="/collections" element={<CollectionsList />} />
+                <Route path="/collections/:id" element={<CollectionDetail />} />
+                <Route path="/query" element={<QueryBuilder />} />
+                <Route path="/upload" element={<AudioUpload />} />
+                <Route path="/manage/chapters" element={<ChaptersManage />} />
+                <Route path="/manage/trauma-cycles" element={<TraumaCyclesManage />} />
+                <Route path="/manage/songs" element={<SongsManage />} />
+                <Route path="/guide" element={<UserGuide />} />
+                <Route path="/wizard" element={<NoahInterviewer />} />
+                <Route path="/import/messenger" element={<MessengerImport />} />
+                <Route path="/import/sms" element={<SmsImport />} />
+                <Route path="/import/chatgpt" element={<ChatGptImport />} />
+                <Route path="/memoir" element={<MemoirExport />} />
+                <Route path="/photo-memory" element={<PhotoMemory />} />
+                <Route path="/family-tree" element={<FamilyTree />} />
+                <Route path="/voice-capture" element={<VoiceCapture />} />
+                <Route path="/collaborate" element={<FamilyCollaboration />} />
+                <Route path="/import/cloud" element={<CloudImport />} />
+                <Route path="/interview" element={<NoahInterviewer />} />
+              </Routes>
+            </Layout>
+          </ProtectedRoute>
+        } />
+      </Routes>
     </BrowserRouter>
   )
 }
