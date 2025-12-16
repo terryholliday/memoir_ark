@@ -180,7 +180,7 @@ export default function VoiceCapture() {
     if (!transcript.trim()) return
 
     try {
-      const response = await fetch(`${API_BASE}/ai/noah`, {
+      const response = await fetch(`${API_BASE}/ai/Ori`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -5,7 +5,7 @@ import { eventsApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Send, Home, Save, RotateCcw, Mic, MicOff } from 'lucide-react'
-import { NOAH_SYSTEM_PROMPT, NOAH_OPENINGS, NOAH_CONFIG, NoahTurnOutput } from '@/ai/personas/NoahPersona'
+import { Ori_SYSTEM_PROMPT, Ori_OPENINGS, Ori_CONFIG, OriTurnOutput } from '@/ai/personas/OriPersona'
 import RectificationWizard from './RectificationWizard'
 
 // ============================================
@@ -61,7 +61,7 @@ declare global {
 
 interface Message {
   id: string
-  role: 'noah' | 'user'
+  role: 'Ori' | 'user'
   content: string
   timestamp: Date
 }
@@ -128,7 +128,7 @@ function useTypingSimulation() {
         setIsTyping(false)
         onComplete?.()
       }
-    }, NOAH_CONFIG.typingSpeed + Math.random() * 20)
+    }, Ori_CONFIG.typingSpeed + Math.random() * 20)
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
@@ -216,7 +216,7 @@ function buildConversationContext(memory: InterviewMemory, maxMessages: number =
   
   // Add conversation history
   context += recentMessages.map(m => {
-    const role = m.role === 'noah' ? 'Noah' : 'User'
+    const role = m.role === 'Ori' ? 'Ori' : 'User'
     return `${role}: ${m.content}`
   }).join('\n\n')
   
@@ -267,10 +267,10 @@ function extractTimelineEvents(text: string, messageId: string): TimelineEvent[]
 }
 
 // ============================================
-// NOAH PRESENCE ANIMATION
+// Ori PRESENCE ANIMATION
 // ============================================
 
-function NoahPresence({ state }: { state: 'listening' | 'thinking' | 'speaking' | 'waiting' }) {
+function OriPresence({ state }: { state: 'listening' | 'thinking' | 'speaking' | 'waiting' }) {
   return (
     <div className="relative">
       {/* Main avatar */}
@@ -324,7 +324,7 @@ function NoahPresence({ state }: { state: 'listening' | 'thinking' | 'speaking' 
 // MAIN COMPONENT
 // ============================================
 
-export default function NoahInterviewer() {
+export default function OriInterviewer() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -332,7 +332,7 @@ export default function NoahInterviewer() {
   
   // State
   const [inputValue, setInputValue] = useState('')
-  const [noahState, setNoahState] = useState<'listening' | 'thinking' | 'speaking' | 'waiting'>('waiting')
+  const [OriState, setOriState] = useState<'listening' | 'thinking' | 'speaking' | 'waiting'>('waiting')
   const [memory, setMemory] = useState<InterviewMemory>({
     messages: [],
     timelineEvents: [],
@@ -341,7 +341,7 @@ export default function NoahInterviewer() {
     emotionalPeaks: [],
     sessionStart: new Date(),
   })
-  const [currentNoahMessage, setCurrentNoahMessage] = useState<Message | null>(null)
+  const [currentOriMessage, setCurrentOriMessage] = useState<Message | null>(null)
   const [isSaved, setIsSaved] = useState(false)
   const [showAstroSettings, setShowAstroSettings] = useState(false)
   const [showRectification, setShowRectification] = useState(false)
@@ -358,9 +358,9 @@ export default function NoahInterviewer() {
     return { date: null, time: null, place: null, astroEnabled: false }
   })
   const [isFirstVisit] = useState(() => {
-    const visited = localStorage.getItem('memoirark-noah-visited')
+    const visited = localStorage.getItem('memoirark-Ori-visited')
     if (!visited) {
-      localStorage.setItem('memoirark-noah-visited', 'true')
+      localStorage.setItem('memoirark-Ori-visited', 'true')
       return true
     }
     return false
@@ -416,7 +416,7 @@ export default function NoahInterviewer() {
       
       // If we have no data at all, use generic
       if (!lastSession && recentEvents.length === 0 && artifacts.length === 0) {
-        return NOAH_OPENINGS.returning
+        return Ori_OPENINGS.returning
       }
 
       // Build context for AI
@@ -453,7 +453,7 @@ export default function NoahInterviewer() {
       )
       const astroNotEnabled = !birthData.astroEnabled
 
-      const prompt = `You are Noah, a master interviewer combining Barbara Walters' precision with Oprah's empathy. A returning user just opened their memoir session.
+      const prompt = `You are Ori, a master interviewer combining Barbara Walters' precision with Oprah's empathy. A returning user just opened their memoir session.
 
 LAST SESSION (if available):
 ${sessionData ? `
@@ -526,7 +526,7 @@ CRITICAL ANTI-HALLUCINATION RULES:
 Be warm but not sycophantic. Channel Oprah's "I see you" energy.
 Keep it to 2-3 short paragraphs max. No JSON, just the greeting text.`
 
-      const response = await fetch('http://localhost:3001/api/ai/noah', {
+      const response = await fetch('http://localhost:3001/api/ai/Ori', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -553,7 +553,7 @@ Keep it to 2-3 short paragraphs max. No JSON, just the greeting text.`
       console.log('Could not generate personalized greeting, using default:', error)
     }
     
-    return NOAH_OPENINGS.returning
+    return Ori_OPENINGS.returning
   }
 
   // Initial greeting - only run once
@@ -562,32 +562,32 @@ Keep it to 2-3 short paragraphs max. No JSON, just the greeting text.`
       hasGreetedRef.current = true
       
       const showGreeting = async () => {
-        setNoahState('thinking')
+        setOriState('thinking')
         
         const greeting = isFirstVisit 
-          ? NOAH_OPENINGS.firstTime 
+          ? Ori_OPENINGS.firstTime 
           : await generateReturningGreeting()
         
-        setNoahState('speaking')
-        const noahMessage: Message = {
+        setOriState('speaking')
+        const OriMessage: Message = {
           id: Date.now().toString(),
-          role: 'noah',
+          role: 'Ori',
           content: greeting,
           timestamp: new Date(),
         }
-        setCurrentNoahMessage(noahMessage)
+        setCurrentOriMessage(OriMessage)
         
         simulateTyping(greeting, () => {
           setMemory(prev => ({
             ...prev,
-            messages: [...prev.messages, noahMessage],
+            messages: [...prev.messages, OriMessage],
           }))
-          setCurrentNoahMessage(null)
-          setNoahState('listening')
+          setCurrentOriMessage(null)
+          setOriState('listening')
         })
       }
       
-      setTimeout(showGreeting, NOAH_CONFIG.thinkingDelay)
+      setTimeout(showGreeting, Ori_CONFIG.thinkingDelay)
     }
   }, [])
 
@@ -600,9 +600,9 @@ Keep it to 2-3 short paragraphs max. No JSON, just the greeting text.`
       
       // Save session summary for next time
       const userMessages = memory.messages.filter(m => m.role === 'user')
-      const noahMessages = memory.messages.filter(m => m.role === 'noah')
-      const lastNoahQuestion = noahMessages.length > 0 
-        ? noahMessages[noahMessages.length - 1].content.split('?')[0] + '?'
+      const OriMessages = memory.messages.filter(m => m.role === 'Ori')
+      const lastOriQuestion = OriMessages.length > 0 
+        ? OriMessages[OriMessages.length - 1].content.split('?')[0] + '?'
         : null
       
       // Extract topics and people from conversation
@@ -621,35 +621,35 @@ Keep it to 2-3 short paragraphs max. No JSON, just the greeting text.`
         topics: topics.length > 0 ? topics : extractTopicsFromText(allText),
         emotions: [...new Set(emotions)],
         people: [...new Set(people)],
-        lastQuestion: lastNoahQuestion,
+        lastQuestion: lastOriQuestion,
         messageCount: userMessages.length,
       }))
       
-      // Noah's closing
+      // Ori's closing
       const closingMessage = "This conversation has been saved to your archive. What you've shared here—these are the threads of your story. They matter. Until next time."
       
-      setNoahState('speaking')
-      const noahMessage: Message = {
+      setOriState('speaking')
+      const OriMessage: Message = {
         id: Date.now().toString(),
-        role: 'noah',
+        role: 'Ori',
         content: closingMessage,
         timestamp: new Date(),
       }
-      setCurrentNoahMessage(noahMessage)
+      setCurrentOriMessage(OriMessage)
       
       simulateTyping(closingMessage, () => {
         setMemory(prev => ({
           ...prev,
-          messages: [...prev.messages, noahMessage],
+          messages: [...prev.messages, OriMessage],
         }))
-        setCurrentNoahMessage(null)
-        setNoahState('waiting')
+        setCurrentOriMessage(null)
+        setOriState('waiting')
       })
     },
   })
 
-  // Parse Noah's JSON response and extract user-facing text + memory data
-  const parseNoahResponse = (rawResponse: string): { 
+  // Parse Ori's JSON response and extract user-facing text + memory data
+  const parseOriResponse = (rawResponse: string): { 
     replyToUser: string; 
     capturedMemory: CapturedMemory | null;
     requestedUpload: 'photo' | 'document' | 'audio' | null;
@@ -657,7 +657,7 @@ Keep it to 2-3 short paragraphs max. No JSON, just the greeting text.`
   } => {
     try {
       // Try to parse as JSON (new protocol)
-      const parsed: NoahTurnOutput = JSON.parse(rawResponse)
+      const parsed: OriTurnOutput = JSON.parse(rawResponse)
       
       // Extract captured memory if status is 'capturing'
       let capturedMemory: CapturedMemory | null = null
@@ -691,19 +691,19 @@ Keep it to 2-3 short paragraphs max. No JSON, just the greeting text.`
     }
   }
 
-  // Generate Noah's response (this would connect to your LLM API)
-  const generateNoahResponse = async (userMessage: string, conversationContext: string): Promise<{ 
+  // Generate Ori's response (this would connect to your LLM API)
+  const generateOriResponse = async (userMessage: string, conversationContext: string): Promise<{ 
     replyToUser: string; 
     capturedMemory: CapturedMemory | null;
     requestedUpload: 'photo' | 'document' | 'audio' | null;
     activeMode: 'standard' | 'astro';
   }> => {
     // In production, this would call your LLM API with:
-    // - NOAH_SYSTEM_PROMPT as the system message
+    // - Ori_SYSTEM_PROMPT as the system message
     // - conversationContext as the conversation history
     // - userMessage as the latest user input
     
-    const apiEndpoint = '/api/ai/noah'
+    const apiEndpoint = '/api/ai/Ori'
     
     // Include birth data for Astro Mode eligibility
     const astroContext = birthData.astroEnabled && birthData.time && birthData.place
@@ -715,7 +715,7 @@ Keep it to 2-3 short paragraphs max. No JSON, just the greeting text.`
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          systemPrompt: NOAH_SYSTEM_PROMPT + astroContext,
+          systemPrompt: Ori_SYSTEM_PROMPT + astroContext,
           conversationHistory: conversationContext,
           userMessage,
         }),
@@ -724,19 +724,19 @@ Keep it to 2-3 short paragraphs max. No JSON, just the greeting text.`
       if (response.ok) {
         const data = await response.json()
         // Parse the response (handles both JSON protocol and plain text)
-        return parseNoahResponse(data.response)
+        return parseOriResponse(data.response)
       }
     } catch (error) {
       console.log('AI endpoint not available, using fallback')
     }
     
-    // Fallback response pattern (demonstrates correct Noah behavior)
+    // Fallback response pattern (demonstrates correct Ori behavior)
     const fallbackText = generateFallbackResponse(userMessage, memory)
     return { replyToUser: fallbackText, capturedMemory: null, requestedUpload: null, activeMode: 'standard' }
   }
 
   const handleSend = async () => {
-    if (!inputValue.trim() || noahState === 'thinking' || noahState === 'speaking') return
+    if (!inputValue.trim() || OriState === 'thinking' || OriState === 'speaking') return
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -756,7 +756,7 @@ Keep it to 2-3 short paragraphs max. No JSON, just the greeting text.`
     }))
 
     setInputValue('')
-    setNoahState('thinking')
+    setOriState('thinking')
 
     // Build context for LLM
     const context = buildConversationContext({
@@ -765,44 +765,44 @@ Keep it to 2-3 short paragraphs max. No JSON, just the greeting text.`
     })
 
     // Simulate thinking time
-    const thinkTime = NOAH_CONFIG.minThinkingTime + 
-      Math.random() * (NOAH_CONFIG.maxThinkingTime - NOAH_CONFIG.minThinkingTime)
+    const thinkTime = Ori_CONFIG.minThinkingTime + 
+      Math.random() * (Ori_CONFIG.maxThinkingTime - Ori_CONFIG.minThinkingTime)
 
     setTimeout(async () => {
       try {
-        const { replyToUser, capturedMemory, requestedUpload } = await generateNoahResponse(userMessage.content, context)
+        const { replyToUser, capturedMemory, requestedUpload } = await generateOriResponse(userMessage.content, context)
         
-        setNoahState('speaking')
-        const noahMessage: Message = {
+        setOriState('speaking')
+        const OriMessage: Message = {
           id: (Date.now() + 1).toString(),
-          role: 'noah',
+          role: 'Ori',
           content: replyToUser,
           timestamp: new Date(),
         }
-        setCurrentNoahMessage(noahMessage)
+        setCurrentOriMessage(OriMessage)
 
         // Log upload request for future UI integration
         if (requestedUpload) {
-          console.log(`📎 Noah requested artifact upload: ${requestedUpload}`)
+          console.log(`📎 Ori requested artifact upload: ${requestedUpload}`)
           // TODO: Trigger upload UI modal based on requestedUpload type
         }
 
         simulateTyping(replyToUser, () => {
           setMemory(prev => ({
             ...prev,
-            messages: [...prev.messages, noahMessage],
+            messages: [...prev.messages, OriMessage],
             // Store captured memory if present
             capturedMemories: capturedMemory 
               ? [...prev.capturedMemories, capturedMemory]
               : prev.capturedMemories,
           }))
-          setCurrentNoahMessage(null)
-          setNoahState('listening')
+          setCurrentOriMessage(null)
+          setOriState('listening')
           textareaRef.current?.focus()
         })
       } catch (error) {
         console.error('Error generating response:', error)
-        setNoahState('listening')
+        setOriState('listening')
       }
     }, thinkTime)
   }
@@ -813,7 +813,7 @@ Keep it to 2-3 short paragraphs max. No JSON, just the greeting text.`
 
     const title = extractTitle(memory.messages)
     const transcript = memory.messages.map(m => 
-      m.role === 'noah' ? `**Noah:** ${m.content}` : `**You:** ${m.content}`
+      m.role === 'Ori' ? `**Ori:** ${m.content}` : `**You:** ${m.content}`
     ).join('\n\n')
 
     // Include timeline events as metadata
@@ -825,7 +825,7 @@ Keep it to 2-3 short paragraphs max. No JSON, just the greeting text.`
       title,
       date: new Date().toISOString().split('T')[0],
       summary: userMessages[0]?.content.slice(0, 200) || '',
-      notes: `## Interview with Noah\n\n${transcript}${timelineNotes}`,
+      notes: `## Interview with Ori\n\n${transcript}${timelineNotes}`,
       emotionTags: [],
       location: null,
       chapterId: null,
@@ -843,27 +843,27 @@ Keep it to 2-3 short paragraphs max. No JSON, just the greeting text.`
       sessionStart: new Date(),
     })
     setIsSaved(false)
-    setCurrentNoahMessage(null)
-    setNoahState('waiting')
+    setCurrentOriMessage(null)
+    setOriState('waiting')
 
     setTimeout(() => {
-      const greeting = NOAH_OPENINGS.returning
-      setNoahState('speaking')
-      const noahMessage: Message = {
+      const greeting = Ori_OPENINGS.returning
+      setOriState('speaking')
+      const OriMessage: Message = {
         id: Date.now().toString(),
-        role: 'noah',
+        role: 'Ori',
         content: greeting,
         timestamp: new Date(),
       }
-      setCurrentNoahMessage(noahMessage)
+      setCurrentOriMessage(OriMessage)
       
       simulateTyping(greeting, () => {
         setMemory(prev => ({
           ...prev,
-          messages: [noahMessage],
+          messages: [OriMessage],
         }))
-        setCurrentNoahMessage(null)
-        setNoahState('listening')
+        setCurrentOriMessage(null)
+        setOriState('listening')
       })
     }, 500)
   }
@@ -876,14 +876,14 @@ Keep it to 2-3 short paragraphs max. No JSON, just the greeting text.`
   }
 
   const handleSkipTyping = () => {
-    if (currentNoahMessage && isTyping) {
-      skipToEnd(currentNoahMessage.content)
+    if (currentOriMessage && isTyping) {
+      skipToEnd(currentOriMessage.content)
       setMemory(prev => ({
         ...prev,
-        messages: [...prev.messages, currentNoahMessage],
+        messages: [...prev.messages, currentOriMessage],
       }))
-      setCurrentNoahMessage(null)
-      setNoahState('listening')
+      setCurrentOriMessage(null)
+      setOriState('listening')
     }
   }
 
@@ -919,7 +919,7 @@ Keep it to 2-3 short paragraphs max. No JSON, just the greeting text.`
           <div className="flex items-center gap-2">
             <div className="text-sm font-medium text-foreground/70 flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-primary/60 animate-pulse" />
-              Noah
+              Ori
             </div>
           </div>
           
@@ -981,7 +981,7 @@ Keep it to 2-3 short paragraphs max. No JSON, just the greeting text.`
             </div>
             
             <p className="text-sm text-muted-foreground">
-              When enabled, Noah can overlay astrological timing context onto your memories—seeing life patterns through planetary cycles. This is optional and requires your exact birth data.
+              When enabled, Ori can overlay astrological timing context onto your memories—seeing life patterns through planetary cycles. This is optional and requires your exact birth data.
             </p>
 
             <div className="space-y-3">
@@ -1104,14 +1104,14 @@ Keep it to 2-3 short paragraphs max. No JSON, just the greeting text.`
               key={message.id}
               className={`flex gap-4 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              {message.role === 'noah' && (
+              {message.role === 'Ori' && (
                 <div className="flex-shrink-0">
-                  <NoahPresence state="waiting" />
+                  <OriPresence state="waiting" />
                 </div>
               )}
               <div
                 className={`max-w-[80%] ${
-                  message.role === 'noah'
+                  message.role === 'Ori'
                     ? 'text-foreground/90'
                     : 'bg-gradient-to-br from-primary/10 to-accent/10 dark:from-primary/20 dark:to-accent/20 rounded-2xl rounded-tr-sm px-5 py-4 text-foreground'
                 }`}
@@ -1123,11 +1123,11 @@ Keep it to 2-3 short paragraphs max. No JSON, just the greeting text.`
             </div>
           ))}
 
-          {/* Current Noah message being typed */}
-          {currentNoahMessage && (
+          {/* Current Ori message being typed */}
+          {currentOriMessage && (
             <div className="flex gap-4 justify-start">
               <div className="flex-shrink-0">
-                <NoahPresence state={noahState} />
+                <OriPresence state={OriState} />
               </div>
               <div className="max-w-[80%] text-foreground/90">
                 <p className="text-lg leading-relaxed whitespace-pre-wrap">
@@ -1139,10 +1139,10 @@ Keep it to 2-3 short paragraphs max. No JSON, just the greeting text.`
           )}
 
           {/* Thinking state */}
-          {noahState === 'thinking' && !currentNoahMessage && (
+          {OriState === 'thinking' && !currentOriMessage && (
             <div className="flex gap-4 justify-start">
               <div className="flex-shrink-0">
-                <NoahPresence state="thinking" />
+                <OriPresence state="thinking" />
               </div>
               <div className="text-muted-foreground text-lg italic">
                 {/* Presence speaks for itself */}
@@ -1165,9 +1165,9 @@ Keep it to 2-3 short paragraphs max. No JSON, just the greeting text.`
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder={noahState === 'listening' ? "Share what's on your heart..." : ""}
+                  placeholder={OriState === 'listening' ? "Share what's on your heart..." : ""}
                   className="min-h-[56px] max-h-[200px] resize-none bg-white dark:bg-slate-900 border-border/50 focus:border-primary/50 dark:focus:border-primary/50 rounded-xl pr-12 shadow-sm"
-                  disabled={noahState === 'thinking' || noahState === 'speaking'}
+                  disabled={OriState === 'thinking' || OriState === 'speaking'}
                 />
                 
                 {/* Voice input button */}
@@ -1178,7 +1178,7 @@ Keep it to 2-3 short paragraphs max. No JSON, just the greeting text.`
                     size="icon"
                     onClick={isListening ? stopListening : startListening}
                     className={`absolute right-2 bottom-2 h-8 w-8 ${isListening ? 'text-red-500' : 'text-stone-400'}`}
-                    disabled={noahState === 'thinking' || noahState === 'speaking'}
+                    disabled={OriState === 'thinking' || OriState === 'speaking'}
                   >
                     {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
                   </Button>
@@ -1187,7 +1187,7 @@ Keep it to 2-3 short paragraphs max. No JSON, just the greeting text.`
               
               <Button
                 onClick={handleSend}
-                disabled={!inputValue.trim() || noahState === 'thinking' || noahState === 'speaking'}
+                disabled={!inputValue.trim() || OriState === 'thinking' || OriState === 'speaking'}
                 size="icon"
                 className="h-14 w-14 rounded-xl bg-gradient-to-br from-primary to-primary/80 hover:from-primary/90 hover:to-primary text-white shadow-lg shadow-primary/20"
               >
@@ -1229,7 +1229,7 @@ Keep it to 2-3 short paragraphs max. No JSON, just the greeting text.`
 function extractTitle(messages: Message[]): string {
   const firstUserMessage = messages.find(m => m.role === 'user')?.content || ''
   const words = firstUserMessage.split(' ').slice(0, 8).join(' ')
-  return words.length > 5 ? words + '...' : 'Interview with Noah'
+  return words.length > 5 ? words + '...' : 'Interview with Ori'
 }
 
 function extractTopicsFromText(text: string): string[] {

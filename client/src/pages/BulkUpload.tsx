@@ -344,7 +344,7 @@ export default function BulkUpload() {
             <li className="flex items-start gap-2">
               <FileText className="h-4 w-4 mt-0.5 text-blue-500" />
               <span>
-                <strong>PDFs and documents</strong> will have their text extracted for Noah to reference.
+                <strong>PDFs and documents</strong> will have their text extracted for Ori to reference.
               </span>
             </li>
           </ul>

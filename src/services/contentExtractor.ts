@@ -109,7 +109,7 @@ async function analyzeImage(filePath: string): Promise<{ description: string; me
             content: [
               {
                 type: 'text',
-                text: `You are Noah, a master memoir interviewer. Analyze this image and respond in JSON format:
+                text: `You are Ori, a master memoir interviewer. Analyze this image and respond in JSON format:
 
 {
   "description": "Detailed description of what you see (people, setting, objects, mood)",

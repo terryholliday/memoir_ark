@@ -51,7 +51,7 @@ export default function LegacyLetterGenerator() {
         wisdom: `Write a letter sharing life wisdom with ${person.name}. Pass on lessons learned, hopes for their future, and guidance from experience.`,
       }
 
-      const response = await fetch('http://localhost:3001/api/ai/noah', {
+      const response = await fetch('http://localhost:3001/api/ai/Ori', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -121,7 +121,7 @@ export default function ChaptersManage() {
                 </p>
                 <p className="flex items-start gap-2">
                   <span className="font-medium">2.</span>
-                  <span><strong>Let Noah help</strong> — as you share your story through interviews and events, Noah will analyze your narrative and suggest chapter titles that capture the themes and turning points of your life.</span>
+                  <span><strong>Let Ori help</strong> — as you share your story through interviews and events, Ori will analyze your narrative and suggest chapter titles that capture the themes and turning points of your life.</span>
                 </p>
               </div>
               <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1 mt-3">

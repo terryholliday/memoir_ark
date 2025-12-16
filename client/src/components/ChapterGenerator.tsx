@@ -118,7 +118,7 @@ ${e.notes ? `Notes: ${e.notes}` : ''}`
         `[${a.type.toUpperCase()}] ${a.shortDescription}: ${a.transcribedText?.slice(0, 200)}...`
       ).join('\n')
 
-      const response = await fetch('http://localhost:3001/api/ai/noah', {
+      const response = await fetch('http://localhost:3001/api/ai/Ori', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -191,7 +191,7 @@ ${persons?.slice(0, 10).map(p => `- ${p.name} (${p.relationshipType || 'relation
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Noah will analyze your events, artifacts, and people to draft a complete memoir chapter. The more material you provide, the richer the chapter.
+          Ori will analyze your events, artifacts, and people to draft a complete memoir chapter. The more material you provide, the richer the chapter.
         </p>
 
         {!generatedChapter ? (

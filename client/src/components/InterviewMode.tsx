@@ -114,7 +114,7 @@ export default function InterviewMode() {
 
   const generateChapterMutation = useMutation({
     mutationFn: async (interviewData: Answer[]) => {
-      const response = await fetch('http://localhost:3001/api/ai/noah', {
+      const response = await fetch('http://localhost:3001/api/ai/Ori', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -213,7 +213,7 @@ Do NOT add any details that weren't mentioned in the answers. Stay true to their
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-muted-foreground">
-            Let Noah guide you through a structured 20-minute interview session. Answer questions about your life, and Noah will draft a memoir chapter based on your responses.
+            Let Ori guide you through a structured 20-minute interview session. Answer questions about your life, and Ori will draft a memoir chapter based on your responses.
           </p>
           <div className="flex items-center gap-4 text-sm text-muted-foreground">
             <span>📝 {INTERVIEW_QUESTIONS.length} questions</span>
@@ -240,7 +240,7 @@ Do NOT add any details that weren't mentioned in the answers. Stay true to their
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-muted-foreground">
-            You answered {answers.length} questions. Noah can now draft a chapter based on your responses.
+            You answered {answers.length} questions. Ori can now draft a chapter based on your responses.
           </p>
           
           {!generatedChapter && (

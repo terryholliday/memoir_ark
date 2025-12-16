@@ -81,7 +81,7 @@ export default function Landing() {
   const features = [
     {
       icon: MessageCircle,
-      title: 'Noah AI Interviewer',
+      title: 'Ori AI Interviewer',
       description: 'Have natural conversations that gently guide you through your memories',
     },
     {
@@ -122,7 +122,7 @@ export default function Landing() {
         '50 life events',
         '5 people profiles',
         'Basic timeline view',
-        '10 Noah conversations/month',
+        '10 Ori conversations/month',
       ],
       cta: 'Get Started Free',
       highlighted: false,
@@ -134,7 +134,7 @@ export default function Landing() {
       description: 'For dedicated memoir writers',
       features: [
         'Unlimited events & people',
-        'Full Noah AI access',
+        'Full Ori AI access',
         'Chapter auto-generation',
         'PDF & ePub export',
         'Audio transcription (5 hrs/mo)',
@@ -330,7 +330,7 @@ export default function Landing() {
             {[
               {
                 step: '1',
-                title: 'Talk to Noah',
+                title: 'Talk to Ori',
                 description: 'Our AI interviewer asks thoughtful questions to help you recall and articulate your memories.',
               },
               {

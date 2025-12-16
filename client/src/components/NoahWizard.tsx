@@ -9,17 +9,17 @@ type InterviewPhase = 'intro' | 'surface' | 'probing' | 'emotional' | 'meaning' 
 interface WizardResponse {
   phase: InterviewPhase
   userAnswer: string
-  noahFollowUp: string
+  OriFollowUp: string
 }
 
-interface NoahWizardProps {
+interface OriWizardProps {
   topic: string
   initialContent?: string
   onComplete: (enrichedContent: string, responses: WizardResponse[]) => void
   onCancel: () => void
 }
 
-// Probing question templates - Noah digs deeper like Oprah/Barbara Walters
+// Probing question templates - Ori digs deeper like Oprah/Barbara Walters
 const PROBING_TEMPLATES = {
   surface: [
     "Tell me what happened. Just the facts first.",
@@ -134,11 +134,11 @@ function getFollowUpQuestion(phase: InterviewPhase, analysis: ReturnType<typeof 
   return question
 }
 
-export default function NoahWizard({ topic, initialContent = '', onComplete, onCancel }: NoahWizardProps) {
+export default function OriWizard({ topic, initialContent = '', onComplete, onCancel }: OriWizardProps) {
   const [phase, setPhase] = useState<InterviewPhase>('intro')
   const [currentAnswer, setCurrentAnswer] = useState('')
   const [responses, setResponses] = useState<WizardResponse[]>([])
-  const [noahMessage, setNoahMessage] = useState(
+  const [OriMessage, setOriMessage] = useState(
     `I want to understand this memory about "${topic}" at its deepest level. Not the version you tell at dinner parties—the real one. The one that still visits you. Are you ready to go there with me?`
   )
   const [isThinking, setIsThinking] = useState(false)
@@ -155,7 +155,7 @@ export default function NoahWizard({ topic, initialContent = '', onComplete, onC
     const newResponse: WizardResponse = {
       phase,
       userAnswer: currentAnswer,
-      noahFollowUp: '',
+      OriFollowUp: '',
     }
     
     // Determine next phase based on current phase and response depth
@@ -195,9 +195,9 @@ export default function NoahWizard({ topic, initialContent = '', onComplete, onC
           break
       }
       
-      newResponse.noahFollowUp = followUp
+      newResponse.OriFollowUp = followUp
       setResponses([...responses, newResponse])
-      setNoahMessage(followUp)
+      setOriMessage(followUp)
       setPhase(nextPhase)
       setCurrentAnswer('')
       setIsThinking(false)
@@ -210,7 +210,7 @@ export default function NoahWizard({ topic, initialContent = '', onComplete, onC
     enrichedContent += `## Deep Dive: ${topic}\n\n`
     
     responses.forEach((r) => {
-      enrichedContent += `**Noah:** ${r.noahFollowUp || 'Tell me about this memory.'}\n\n`
+      enrichedContent += `**Ori:** ${r.OriFollowUp || 'Tell me about this memory.'}\n\n`
       enrichedContent += `${r.userAnswer}\n\n`
     })
     
@@ -221,7 +221,7 @@ export default function NoahWizard({ topic, initialContent = '', onComplete, onC
     setPhase('intro')
     setResponses([])
     setCurrentAnswer('')
-    setNoahMessage(
+    setOriMessage(
       `I want to understand this memory about "${topic}" at its deepest level. Not the version you tell at dinner parties—the real one. The one that still visits you. Are you ready to go there with me?`
     )
   }
@@ -236,7 +236,7 @@ export default function NoahWizard({ topic, initialContent = '', onComplete, onC
               🧔
             </div>
             <div>
-              <h2 className="font-display font-semibold">Noah's Deep Dive</h2>
+              <h2 className="font-display font-semibold">Ori's Deep Dive</h2>
               <p className="text-xs text-muted-foreground">
                 {phase === 'complete' ? 'Interview Complete' : `Phase: ${phase.charAt(0).toUpperCase() + phase.slice(1)}`}
               </p>
@@ -252,13 +252,13 @@ export default function NoahWizard({ topic, initialContent = '', onComplete, onC
           {/* Previous exchanges */}
           {responses.map((r, i) => (
             <div key={i} className="space-y-3">
-              {r.noahFollowUp && (
+              {r.OriFollowUp && (
                 <div className="flex gap-3">
                   <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900 flex items-center justify-center text-sm flex-shrink-0">
                     🧔
                   </div>
                   <div className="bg-muted rounded-2xl rounded-tl-sm px-4 py-2 max-w-[85%]">
-                    <p className="text-sm font-narrative">{r.noahFollowUp}</p>
+                    <p className="text-sm font-narrative">{r.OriFollowUp}</p>
                   </div>
                 </div>
               )}
@@ -270,13 +270,13 @@ export default function NoahWizard({ topic, initialContent = '', onComplete, onC
             </div>
           ))}
 
-          {/* Current Noah message */}
+          {/* Current Ori message */}
           <div className="flex gap-3">
             <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900 flex items-center justify-center text-sm flex-shrink-0">
               🧔
             </div>
             <div className="bg-muted rounded-2xl rounded-tl-sm px-4 py-3 max-w-[85%]">
-              <p className="text-sm font-narrative italic">"{noahMessage}"</p>
+              <p className="text-sm font-narrative italic">"{OriMessage}"</p>
             </div>
           </div>
 
@@ -313,7 +313,7 @@ export default function NoahWizard({ topic, initialContent = '', onComplete, onC
                   Start Over
                 </Button>
                 <Button onClick={handleSubmit} disabled={!currentAnswer.trim() || isThinking}>
-                  {isThinking ? 'Noah is listening...' : 'Share'}
+                  {isThinking ? 'Ori is listening...' : 'Share'}
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               </div>

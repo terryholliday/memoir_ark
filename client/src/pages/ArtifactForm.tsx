@@ -302,7 +302,7 @@ export default function ArtifactForm() {
               {memoryPrompts.length > 0 && (
                 <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-800">
                   <h4 className="font-medium text-amber-900 dark:text-amber-100 mb-2">
-                    🎙️ Noah's Interview Questions
+                    🎙️ Ori's Interview Questions
                   </h4>
                   <p className="text-xs text-amber-700 dark:text-amber-300 mb-3">
                     Based on this image, here are some questions to help you capture the memory:

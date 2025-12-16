@@ -32,7 +32,7 @@ export default function Layout({ children, theme, toggleTheme }: LayoutProps) {
   // Primary nav items (always visible with labels)
   const primaryNav = [
     { path: '/', label: 'Home', icon: Home },
-    { path: '/wizard', label: 'Talk to Noah', icon: MessageCircle, featured: true },
+    { path: '/wizard', label: 'Talk to Ori', icon: MessageCircle, featured: true },
     { path: '/timeline', label: 'Timeline', icon: Clock },
     { path: '/insights', label: 'Insights', icon: Lightbulb },
   ]

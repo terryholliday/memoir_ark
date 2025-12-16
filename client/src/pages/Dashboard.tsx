@@ -47,7 +47,7 @@ export default function Dashboard() {
 
   const quickActions = [
     {
-      title: 'Talk with Noah',
+      title: 'Talk with Ori',
       description: 'Your story guide awaits',
       icon: Sparkles,
       href: '/wizard',
@@ -230,7 +230,7 @@ export default function Dashboard() {
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 text-primary flex items-center justify-center text-sm font-semibold flex-shrink-0">1</div>
             <div>
               <p className="font-medium">Let the memories flow</p>
-              <p className="text-sm text-muted-foreground">Talk with Noah, add moments as they come, upload photos and recordings</p>
+              <p className="text-sm text-muted-foreground">Talk with Ori, add moments as they come, upload photos and recordings</p>
             </div>
           </div>
           <div className="flex items-start gap-4">

@@ -1,28 +1,28 @@
 import { Router, Request, Response } from 'express';
 
-export const noahRoutes = Router();
+export const OriRoutes = Router();
 
 /**
- * Noah AI Endpoint
+ * Ori AI Endpoint
  * 
- * This endpoint handles the AI conversation for Noah, the digital biographer.
+ * This endpoint handles the AI conversation for Ori, the digital biographer.
  * It expects a system prompt, conversation history, and user message,
- * and returns Noah's response.
+ * and returns Ori's response.
  * 
  * In production, this would connect to an LLM API (OpenAI, Anthropic, etc.)
- * For now, it provides a fallback response that demonstrates correct Noah behavior.
+ * For now, it provides a fallback response that demonstrates correct Ori behavior.
  */
 
-interface NoahRequest {
+interface OriRequest {
   systemPrompt: string;
   conversationHistory: string;
   userMessage: string;
 }
 
-// POST /api/ai/noah - Generate Noah's response
-noahRoutes.post('/noah', async (req: Request, res: Response) => {
+// POST /api/ai/Ori - Generate Ori's response
+OriRoutes.post('/Ori', async (req: Request, res: Response) => {
   try {
-    const { systemPrompt, conversationHistory, userMessage } = req.body as NoahRequest;
+    const { systemPrompt, conversationHistory, userMessage } = req.body as OriRequest;
 
     if (!userMessage) {
       return res.status(400).json({ error: 'User message is required' });
@@ -51,12 +51,12 @@ noahRoutes.post('/noah', async (req: Request, res: Response) => {
               }
               currentRole = 'user';
               currentContent = line.replace('User:', '').trim();
-            } else if (line.startsWith('Noah:')) {
+            } else if (line.startsWith('Ori:')) {
               if (currentRole && currentContent.trim()) {
                 messages.push({ role: currentRole, content: currentContent.trim() });
               }
               currentRole = 'assistant';
-              currentContent = line.replace('Noah:', '').trim();
+              currentContent = line.replace('Ori:', '').trim();
             } else if (currentRole) {
               currentContent += '\n' + line;
             }
@@ -86,11 +86,11 @@ noahRoutes.post('/noah', async (req: Request, res: Response) => {
 
         if (response.ok) {
           const data = await response.json() as { choices: Array<{ message: { content: string } }> };
-          const noahResponse = data.choices[0]?.message?.content;
+          const OriResponse = data.choices[0]?.message?.content;
           
-          if (noahResponse) {
-            console.log('✅ Noah response generated via OpenAI');
-            return res.json({ response: noahResponse });
+          if (OriResponse) {
+            console.log('✅ Ori response generated via OpenAI');
+            return res.json({ response: OriResponse });
           }
         } else {
           const errorData = await response.text();
@@ -133,11 +133,11 @@ noahRoutes.post('/noah', async (req: Request, res: Response) => {
           const data = await response.json() as { 
             candidates: Array<{ content: { parts: Array<{ text: string }> } }> 
           };
-          const noahResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          const OriResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
           
-          if (noahResponse) {
-            console.log('✅ Noah response generated via Gemini');
-            return res.json({ response: noahResponse });
+          if (OriResponse) {
+            console.log('✅ Ori response generated via Gemini');
+            return res.json({ response: OriResponse });
           }
         } else {
           const errorData = await response.text();
@@ -173,11 +173,11 @@ noahRoutes.post('/noah', async (req: Request, res: Response) => {
 
         if (response.ok) {
           const data = await response.json() as { content: Array<{ text: string }> };
-          const noahResponse = data.content[0]?.text;
+          const OriResponse = data.content[0]?.text;
           
-          if (noahResponse) {
-            console.log('✅ Noah response generated via Anthropic');
-            return res.json({ response: noahResponse });
+          if (OriResponse) {
+            console.log('✅ Ori response generated via Anthropic');
+            return res.json({ response: OriResponse });
           }
         }
       } catch (error) {
@@ -187,19 +187,19 @@ noahRoutes.post('/noah', async (req: Request, res: Response) => {
     }
 
     // Fallback: Generate response using pattern-based logic
-    // This demonstrates correct Noah behavior without an LLM
+    // This demonstrates correct Ori behavior without an LLM
     console.log('⚠️ Using fallback response - no AI provider configured or all failed');
     const fallbackResponse = generateFallbackResponse(userMessage, conversationHistory);
     res.json({ response: fallbackResponse });
 
   } catch (error) {
-    console.error('Error in Noah endpoint:', error);
+    console.error('Error in Ori endpoint:', error);
     res.status(500).json({ error: 'Failed to generate response' });
   }
 });
 
 // POST /api/ai/rectify - Birth time rectification using life events
-noahRoutes.post('/rectify', async (req: Request, res: Response) => {
+OriRoutes.post('/rectify', async (req: Request, res: Response) => {
   try {
     const { birthDate, birthPlace, timeWindow, lifeEvents } = req.body;
 
@@ -356,8 +356,8 @@ Respond with ONLY valid JSON (no markdown, no code fences):
   }
 });
 
-// GET /api/ai/noah/status - Check if AI is configured
-noahRoutes.get('/noah/status', (req: Request, res: Response) => {
+// GET /api/ai/Ori/status - Check if AI is configured
+OriRoutes.get('/Ori/status', (req: Request, res: Response) => {
   const hasOpenAI = !!process.env.OPENAI_API_KEY;
   const hasGoogleAI = !!process.env.GOOGLE_AI_API_KEY;
   const hasAnthropic = !!process.env.ANTHROPIC_API_KEY;
@@ -376,7 +376,7 @@ noahRoutes.get('/noah/status', (req: Request, res: Response) => {
 
 /**
  * Fallback response generator
- * Demonstrates correct Noah behavior: Reflect → Validate → Ask ONE open-ended question
+ * Demonstrates correct Ori behavior: Reflect → Validate → Ask ONE open-ended question
  */
 function generateFallbackResponse(userMessage: string, history: string): string {
   const text = userMessage.toLowerCase();

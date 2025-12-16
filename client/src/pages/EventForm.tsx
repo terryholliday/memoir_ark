@@ -17,7 +17,7 @@ import {
 import { ArrowLeft, Save } from 'lucide-react'
 import TagSuggestions from '@/components/TagSuggestions'
 import ContextAssistant from '@/components/ContextAssistant'
-import NoahWizard from '@/components/NoahWizard'
+import OriWizard from '@/components/OriWizard'
 
 export default function EventForm() {
   const { id } = useParams<{ id: string }>()
@@ -40,7 +40,7 @@ export default function EventForm() {
 
   const [emotionTagsInput, setEmotionTagsInput] = useState('')
   const [showContextAssistant, setShowContextAssistant] = useState(false)
-  const [showNoahWizard, setShowNoahWizard] = useState(false)
+  const [showOriWizard, setShowOriWizard] = useState(false)
 
   const { data: event, isLoading: eventLoading } = useQuery({
     queryKey: ['event', id],
@@ -347,10 +347,10 @@ export default function EventForm() {
                     type="button"
                     variant="default"
                     size="sm"
-                    onClick={() => setShowNoahWizard(true)}
+                    onClick={() => setShowOriWizard(true)}
                     className="bg-amber-600 hover:bg-amber-700"
                   >
-                    🧔 Deep Dive with Noah
+                    🧔 Deep Dive with Ori
                   </Button>
                 </div>
               )}
@@ -379,8 +379,8 @@ export default function EventForm() {
               />
             )}
 
-            {showNoahWizard && (
-              <NoahWizard
+            {showOriWizard && (
+              <OriWizard
                 topic={formData.title || 'this memory'}
                 initialContent={formData.notes || ''}
                 onComplete={(enrichedContent) => {
@@ -388,9 +388,9 @@ export default function EventForm() {
                     ...prev,
                     notes: enrichedContent,
                   }))
-                  setShowNoahWizard(false)
+                  setShowOriWizard(false)
                 }}
-                onCancel={() => setShowNoahWizard(false)}
+                onCancel={() => setShowOriWizard(false)}
               />
             )}
 

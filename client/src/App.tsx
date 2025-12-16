@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import Layout from './components/Layout'
 import WelcomeModal from './components/WelcomeModal'
 import OnboardingTour, { useTourState } from './components/OnboardingTour'
-import NoahGuide from './components/NoahGuide'
+import OriGuide from './components/OriGuide'
 import ProtectedRoute from './components/ProtectedRoute'
 import Login from './pages/Login'
 import Landing from './pages/Landing'
@@ -46,7 +46,7 @@ import VoiceCapture from './pages/VoiceCapture'
 import FamilyCollaboration from './pages/FamilyCollaboration'
 import CloudImport from './pages/CloudImport'
 import BulkUpload from './pages/BulkUpload'
-import NoahInterviewer from './components/NoahInterviewer'
+import OriInterviewer from './components/OriInterviewer'
 import Insights from './pages/Insights'
 
 function App() {
@@ -95,10 +95,10 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/login/callback" element={<LoginCallback />} />
         
-        {/* Noah Interview - Full screen, outside main layout */}
+        {/* Ori Interview - Full screen, outside main layout */}
         <Route path="/interview" element={
           <ProtectedRoute>
-            <NoahInterviewer />
+            <OriInterviewer />
           </ProtectedRoute>
         } />
         
@@ -108,7 +108,7 @@ function App() {
             {showTour && <OnboardingTour onComplete={endTour} />}
             {showWelcome && !showTour && <WelcomeModal onClose={handleCloseWelcome} />}
             <Layout theme={theme} toggleTheme={toggleTheme}>
-              <NoahGuide />
+              <OriGuide />
               <Routes>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/events" element={<EventList />} />
@@ -142,7 +142,7 @@ function App() {
                 <Route path="/manage/trauma-cycles" element={<TraumaCyclesManage />} />
                 <Route path="/manage/songs" element={<SongsManage />} />
                 <Route path="/guide" element={<UserGuide />} />
-                <Route path="/wizard" element={<NoahInterviewer />} />
+                <Route path="/wizard" element={<OriInterviewer />} />
                 <Route path="/import/messenger" element={<MessengerImport />} />
                 <Route path="/import/sms" element={<SmsImport />} />
                 <Route path="/import/chatgpt" element={<ChatGptImport />} />
@@ -153,7 +153,7 @@ function App() {
                 <Route path="/collaborate" element={<FamilyCollaboration />} />
                 <Route path="/import/cloud" element={<CloudImport />} />
                 <Route path="/bulk-upload" element={<BulkUpload />} />
-                <Route path="/interview" element={<NoahInterviewer />} />
+                <Route path="/interview" element={<OriInterviewer />} />
                 <Route path="/insights" element={<Insights />} />
               </Routes>
             </Layout>

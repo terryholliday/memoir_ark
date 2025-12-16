@@ -80,7 +80,7 @@ export default function PhotoMemory() {
 
     // Use AI to extract details from description
     try {
-      const response = await fetch(`${API_BASE}/ai/noah`, {
+      const response = await fetch(`${API_BASE}/ai/Ori`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -243,7 +243,7 @@ Respond with ONLY valid JSON:
               <div className="flex items-start gap-3">
                 <Sparkles className="w-5 h-5 text-violet-500 mt-0.5" />
                 <div>
-                  <p className="font-medium text-sm">Noah asks:</p>
+                  <p className="font-medium text-sm">Ori asks:</p>
                   <p className="text-sm text-muted-foreground mt-1">
                     What's the story behind this photo? Who's in it, when was it taken, 
                     and what was happening? Share as much or as little as you'd like.

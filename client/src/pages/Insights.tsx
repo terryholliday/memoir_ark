@@ -183,7 +183,7 @@ export default function Insights() {
                   <li>Set a daily reminder to add one memory</li>
                   <li>Use the "This Day" prompts for inspiration</li>
                   <li>Even a small memory counts — quality over quantity</li>
-                  <li>Talk to Noah when you're not sure what to write about</li>
+                  <li>Talk to Ori when you're not sure what to write about</li>
                 </ul>
               </CardContent>
             </Card>
