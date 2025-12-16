@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { google } from 'googleapis';
 import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';
+import { z } from 'zod';
 
 export const authRoutes = Router();
 const prisma = new PrismaClient();
@@ -181,6 +182,119 @@ authRoutes.post('/logout', (req: Request, res: Response) => {
   // For a simple implementation, logout is handled client-side by removing the token
   // In production, you might want to maintain a token blacklist
   res.json({ success: true });
+});
+
+// ============================================
+// EMAIL/PASSWORD AUTHENTICATION
+// ============================================
+
+const signupSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  name: z.string().optional(),
+});
+
+const loginSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(1, 'Password is required'),
+});
+
+// Hash password using PBKDF2
+function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password: string, stored: string): boolean {
+  const [salt, hash] = stored.split(':');
+  const verifyHash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+  return hash === verifyHash;
+}
+
+// POST /api/auth/signup - Email/password signup
+authRoutes.post('/signup', async (req: Request, res: Response) => {
+  try {
+    const parsed = signupSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ 
+        error: 'Validation failed', 
+        details: parsed.error.errors 
+      });
+    }
+
+    const { email, password, name } = parsed.data;
+
+    // Check if user already exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email }
+    });
+
+    if (existingUser) {
+      return res.status(409).json({ error: 'Email already registered' });
+    }
+
+    // Create user with hashed password
+    const passwordHash = hashPassword(password);
+    const user = await prisma.user.create({
+      data: {
+        email,
+        passwordHash,
+        name: name || null,
+      }
+    });
+
+    // Create session token
+    const token = createToken({ userId: user.id, email: user.email });
+
+    res.status(201).json({
+      user: { id: user.id, email: user.email, name: user.name },
+      token,
+    });
+  } catch (error) {
+    console.error('Signup error:', error);
+    res.status(500).json({ error: 'Failed to create account' });
+  }
+});
+
+// POST /api/auth/login - Email/password login
+authRoutes.post('/login', async (req: Request, res: Response) => {
+  try {
+    const parsed = loginSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ 
+        error: 'Validation failed', 
+        details: parsed.error.errors 
+      });
+    }
+
+    const { email, password } = parsed.data;
+
+    // Find user by email
+    const user = await prisma.user.findUnique({
+      where: { email }
+    });
+
+    if (!user || !user.passwordHash) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    // Verify password
+    if (!verifyPassword(password, user.passwordHash)) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    // Create session token
+    const token = createToken({ userId: user.id, email: user.email });
+
+    res.json({
+      user: { id: user.id, email: user.email, name: user.name, picture: user.picture },
+      token,
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Failed to login' });
+  }
 });
 
 // ============================================

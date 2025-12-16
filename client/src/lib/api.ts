@@ -556,7 +556,12 @@ export interface UploadResult {
     originalName: string
     size: number
     mimetype: string
+    path?: string
   }
+  extractedText?: string
+  memoryPrompts?: string[]
+  estimatedDate?: string
+  message?: string
 }
 
 export interface BatchUploadResult {
@@ -588,6 +593,25 @@ export const uploadsApi = {
   },
   getAudioUrl: (filename: string): string => {
     return `${api.defaults.baseURL}/uploads/${filename}`
+  },
+  uploadImage: async (file: File): Promise<UploadResult> => {
+    const formData = new FormData()
+    formData.append('image', file)
+    
+    const { data } = await api.post('/uploads/image', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return data
+  },
+  uploadDocument: async (file: File, shortDescription?: string): Promise<UploadResult> => {
+    const formData = new FormData()
+    formData.append('document', file)
+    if (shortDescription) formData.append('shortDescription', shortDescription)
+    
+    const { data } = await api.post('/uploads/document', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return data
   },
 }
 

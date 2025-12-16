@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { songsApi, Song, SongCreateInput } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -6,7 +6,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Plus, Pencil, Trash2, Music } from 'lucide-react'
+import { Plus, Pencil, Trash2, Music, Loader2, Search } from 'lucide-react'
+
+const API_BASE = 'http://localhost:3001/api'
+
+interface SpotifyTrack {
+  spotifyId: string
+  title: string
+  artist: string
+  album: string
+  releaseYear: string | null
+  albumArt: string | null
+  spotifyUrl: string
+  previewUrl: string | null
+}
 
 export default function SongsManage() {
   const queryClient = useQueryClient()
@@ -19,6 +32,80 @@ export default function SongsManage() {
     keyLyric: '',
     notes: '',
   })
+
+  // Spotify search state
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<SpotifyTrack[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [showResults, setShowResults] = useState(false)
+  const [spotifyConfigured, setSpotifyConfigured] = useState<boolean | null>(null)
+  const searchTimeout = useRef<NodeJS.Timeout | null>(null)
+  const resultsRef = useRef<HTMLDivElement>(null)
+
+  // Check if Spotify is configured
+  useEffect(() => {
+    fetch(`${API_BASE}/spotify/status`)
+      .then(res => res.json())
+      .then(data => setSpotifyConfigured(data.configured))
+      .catch(() => setSpotifyConfigured(false))
+  }, [])
+
+  // Debounced Spotify search
+  useEffect(() => {
+    if (searchTimeout.current) {
+      clearTimeout(searchTimeout.current)
+    }
+
+    if (!searchQuery || searchQuery.length < 2) {
+      setSearchResults([])
+      setShowResults(false)
+      return
+    }
+
+    setIsSearching(true)
+    searchTimeout.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`${API_BASE}/spotify/search?q=${encodeURIComponent(searchQuery)}`)
+        const data = await res.json()
+        setSearchResults(data.tracks || [])
+        setShowResults(true)
+      } catch (error) {
+        console.error('Spotify search error:', error)
+        setSearchResults([])
+      } finally {
+        setIsSearching(false)
+      }
+    }, 300)
+
+    return () => {
+      if (searchTimeout.current) {
+        clearTimeout(searchTimeout.current)
+      }
+    }
+  }, [searchQuery])
+
+  // Close results when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (resultsRef.current && !resultsRef.current.contains(e.target as Node)) {
+        setShowResults(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const selectSpotifyTrack = (track: SpotifyTrack) => {
+    setFormData(prev => ({
+      ...prev,
+      title: track.title,
+      artist: track.artist,
+      era: track.releaseYear || '',
+    }))
+    setSearchQuery('')
+    setShowResults(false)
+    setSearchResults([])
+  }
 
   const { data: songs, isLoading } = useQuery({
     queryKey: ['songs'],
@@ -102,6 +189,57 @@ export default function SongsManage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Spotify Search */}
+              {spotifyConfigured && !editingSong && (
+                <div className="space-y-2" ref={resultsRef}>
+                  <Label htmlFor="search">Search Spotify</Label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="search"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Type a song name to search..."
+                      className="pl-9"
+                    />
+                    {isSearching && (
+                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                    )}
+                  </div>
+                  {showResults && searchResults.length > 0 && (
+                    <div className="absolute z-50 w-full max-w-md bg-background border rounded-md shadow-lg max-h-64 overflow-y-auto">
+                      {searchResults.map((track) => (
+                        <button
+                          key={track.spotifyId}
+                          type="button"
+                          onClick={() => selectSpotifyTrack(track)}
+                          className="w-full flex items-center gap-3 p-2 hover:bg-muted text-left"
+                        >
+                          {track.albumArt && (
+                            <img src={track.albumArt} alt="" className="w-10 h-10 rounded" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium truncate">{track.title}</div>
+                            <div className="text-sm text-muted-foreground truncate">
+                              {track.artist} {track.releaseYear && `• ${track.releaseYear}`}
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {showResults && searchResults.length === 0 && searchQuery.length >= 2 && !isSearching && (
+                    <div className="text-sm text-muted-foreground">No results found</div>
+                  )}
+                </div>
+              )}
+
+              {spotifyConfigured === false && !editingSong && (
+                <div className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
+                  Add SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET to .env for song search
+                </div>
+              )}
+
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="title">Title *</Label>

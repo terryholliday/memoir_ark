@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("POSTGRES_URL")
 }
 
 // ============================================
@@ -14,7 +14,8 @@ datasource db {
 model User {
   id            String   @id @default(cuid())
   email         String   @unique
-  googleId      String   @unique
+  googleId      String?  @unique
+  passwordHash  String?
   name          String?
   picture       String?
   createdAt     DateTime @default(now())

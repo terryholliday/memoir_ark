@@ -17,6 +17,7 @@ interface RectificationResult {
   confidenceLevel: 'low' | 'medium' | 'high'
   reasoning: string
   alternativeTimes: string[]
+  missingEventTypes?: string[]
   disclaimer: string
 }
 
@@ -280,7 +281,7 @@ export default function RectificationWizard({
                 </div>
               ))}
 
-              {events.length < 6 && (
+              {events.length < 12 && (
                 <button
                   onClick={addEvent}
                   className="w-full border-2 border-dashed rounded-lg p-3 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
@@ -292,7 +293,7 @@ export default function RectificationWizard({
             </div>
 
             <p className="text-xs text-muted-foreground">
-              {events.filter(e => e.date && e.description).length} of 3-6 events added
+              {events.filter(e => e.date && e.description).length} events added (minimum 3, more = better accuracy)
             </p>
 
             <div className="flex gap-3 pt-4">
@@ -336,6 +337,44 @@ export default function RectificationWizard({
                 }`}>{result.confidenceLevel}</span>
               </p>
             </div>
+
+            {/* Prompt for more events if confidence is not high */}
+            {result.confidenceLevel !== 'high' && (
+              <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
+                  Want more accuracy?
+                </p>
+                <p className="text-sm text-blue-700 dark:text-blue-300 mb-2">
+                  The rising sign changes every ~2 hours. Certain event types are especially useful for narrowing down birth time:
+                </p>
+                {result.missingEventTypes && result.missingEventTypes.length > 0 ? (
+                  <div className="mb-3">
+                    <p className="text-xs font-medium text-blue-800 dark:text-blue-200 mb-1">Events that would help most:</p>
+                    <ul className="text-sm text-blue-700 dark:text-blue-300 list-disc list-inside">
+                      {result.missingEventTypes.map((type, i) => (
+                        <li key={i}>{type}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <ul className="text-xs text-blue-700 dark:text-blue-300 mb-3 space-y-1">
+                    <li>• <strong>Accidents/surgeries</strong> - pinpoint the Ascendant (body)</li>
+                    <li>• <strong>Marriage/divorce dates</strong> - pinpoint the Descendant (7th house)</li>
+                    <li>• <strong>Career milestones</strong> - pinpoint the Midheaven (10th house)</li>
+                    <li>• <strong>Parent's death</strong> - pinpoint the IC (4th house)</li>
+                  </ul>
+                )}
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setStep('events')}
+                  className="text-blue-700 border-blue-300 hover:bg-blue-100 dark:text-blue-300 dark:border-blue-700 dark:hover:bg-blue-900/50"
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add More Events
+                </Button>
+              </div>
+            )}
 
             <div>
               <h4 className="text-sm font-medium mb-1">Reasoning</h4>

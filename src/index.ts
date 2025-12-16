@@ -25,6 +25,7 @@ import { memoirExportRoutes } from './routes/memoirExport';
 import { noahRoutes } from './routes/noah';
 import { cloudStorageRoutes } from './routes/cloudStorage';
 import { authRoutes } from './routes/auth';
+import { spotifyRoutes } from './routes/spotify';
 
 dotenv.config();
 
@@ -60,6 +61,7 @@ app.use('/api/memoir', memoirExportRoutes);
 app.use('/api/ai', noahRoutes);
 app.use('/api/cloud', cloudStorageRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/spotify', spotifyRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

@@ -1,14 +1,22 @@
-import { ReactNode } from 'react'
+import { ReactNode, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Moon, Sun, Home, Calendar, BookOpen, Users, FileText, Sparkles, Clock, Search, Download, Tag, FolderOpen, Filter, Upload, Music, RotateCcw, HelpCircle, Feather, LogOut } from 'lucide-react'
+import { 
+  Moon, Sun, Home, Calendar, BookOpen, Users, FileText, Sparkles, 
+  Clock, Search, Download, Tag, FolderOpen, Upload, Music, 
+  HelpCircle, Feather, LogOut, MessageCircle, Menu, X, ChevronDown,
+  TreePine, Mic, Package, FileArchive
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth'
+import { Button } from '@/components/ui/button'
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 interface LayoutProps {
   children: ReactNode
@@ -19,114 +27,276 @@ interface LayoutProps {
 export default function Layout({ children, theme, toggleTheme }: LayoutProps) {
   const location = useLocation()
   const { user, logout } = useAuth()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
-  const navItems = [
-    { path: '/', label: 'Dashboard', icon: Home },
+  // Primary nav items (always visible with labels)
+  const primaryNav = [
+    { path: '/', label: 'Home', icon: Home },
+    { path: '/wizard', label: 'Talk to Noah', icon: MessageCircle, featured: true },
     { path: '/timeline', label: 'Timeline', icon: Clock },
-    { path: '/events', label: 'Events', icon: Calendar },
-    { path: '/chapters', label: 'Chapters', icon: BookOpen },
-    { path: '/people', label: 'People', icon: Users },
-    { path: '/artifacts', label: 'Artifacts', icon: FileText },
-    { path: '/synchronicities', label: 'Sync', icon: Sparkles },
-    { path: '/tags', label: 'Tags', icon: Tag },
-    { path: '/collections', label: 'Collections', icon: FolderOpen },
-    { path: '/query', label: 'Query', icon: Filter },
-    { path: '/upload', label: 'Upload', icon: Upload },
-    { path: '/search', label: 'Search', icon: Search },
-    { path: '/export', label: 'Export', icon: Download },
-    { path: '/manage/chapters', label: 'Edit Chapters', icon: BookOpen },
-    { path: '/manage/trauma-cycles', label: 'Edit Cycles', icon: RotateCcw },
-    { path: '/manage/songs', label: 'Edit Songs', icon: Music },
-    { path: '/guide', label: 'User Guide', icon: HelpCircle },
   ]
 
-  return (
-    <TooltipProvider delayDuration={200}>
-      <div className="min-h-screen bg-background">
-        <header className="sticky top-0 z-50 border-b border-border/50 bg-background/90 backdrop-blur-md supports-[backdrop-filter]:bg-background/70">
-          <div className="container flex h-14 items-center">
-            <div className="mr-4 flex">
-              <Link to="/" className="flex items-center space-x-2 group">
-                <div className="p-1.5 rounded-lg bg-gradient-to-br from-primary/10 to-accent/10 group-hover:from-primary/20 group-hover:to-accent/20 transition-colors">
-                  <Feather className="h-5 w-5 text-primary" />
+  // Dropdown menus
+  const contentMenu = [
+    { path: '/events', label: 'Life Events', icon: Calendar, desc: 'Your memories and moments' },
+    { path: '/people', label: 'People', icon: Users, desc: 'Those who shaped your story' },
+    { path: '/artifacts', label: 'Artifacts', icon: FileText, desc: 'Photos, documents, treasures' },
+    { path: '/chapters', label: 'Chapters', icon: BookOpen, desc: 'Your memoir structure' },
+    { path: '/synchronicities', label: 'Synchronicities', icon: Sparkles, desc: 'Meaningful coincidences' },
+    { path: '/family-tree', label: 'Family Tree', icon: TreePine, desc: 'Your lineage' },
+  ]
+
+  const importMenu = [
+    { path: '/bulk-upload', label: 'Bulk Upload', icon: FileArchive, desc: 'Multiple files or ZIP' },
+    { path: '/upload', label: 'Audio Recording', icon: Mic, desc: 'Voice memos and recordings' },
+    { path: '/voice-capture', label: 'Voice Capture', icon: Mic, desc: 'Record directly' },
+    { path: '/import/cloud', label: 'Cloud Import', icon: Package, desc: 'Google Drive, Dropbox' },
+  ]
+
+  const organizeMenu = [
+    { path: '/search', label: 'Search', icon: Search, desc: 'Find anything' },
+    { path: '/tags', label: 'Tags', icon: Tag, desc: 'Organize by theme' },
+    { path: '/collections', label: 'Collections', icon: FolderOpen, desc: 'Group related items' },
+  ]
+
+  const moreMenu = [
+    { path: '/export', label: 'Export Memoir', icon: Download, desc: 'Download your story' },
+    { path: '/manage/songs', label: 'Soundtrack', icon: Music, desc: 'Songs of your life' },
+    { path: '/guide', label: 'Help & Guide', icon: HelpCircle, desc: 'How to use MemoirArk' },
+  ]
+
+  const NavDropdown = ({ label, items, icon: Icon }: { label: string; items: typeof contentMenu; icon: any }) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" className="flex items-center gap-1.5 h-9 px-3">
+          <Icon className="h-4 w-4" />
+          <span>{label}</span>
+          <ChevronDown className="h-3 w-3 opacity-50" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-64">
+        {items.map((item) => {
+          const ItemIcon = item.icon
+          const isActive = location.pathname === item.path
+          return (
+            <DropdownMenuItem key={item.path} asChild>
+              <Link 
+                to={item.path} 
+                className={cn(
+                  "flex items-start gap-3 p-2 cursor-pointer",
+                  isActive && "bg-primary/5"
+                )}
+              >
+                <ItemIcon className={cn("h-5 w-5 mt-0.5", isActive ? "text-primary" : "text-muted-foreground")} />
+                <div>
+                  <div className={cn("font-medium", isActive && "text-primary")}>{item.label}</div>
+                  <div className="text-xs text-muted-foreground">{item.desc}</div>
                 </div>
-                <span className="font-display text-xl bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text">MemoirArk</span>
               </Link>
+            </DropdownMenuItem>
+          )
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+
+  return (
+    <div className="min-h-screen bg-background">
+      <header className="sticky top-0 z-50 border-b border-border/50 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80">
+        <div className="container flex h-14 items-center justify-between">
+          {/* Logo */}
+          <Link to="/" className="flex items-center space-x-2 group">
+            <div className="p-1.5 rounded-lg bg-gradient-to-br from-primary/10 to-accent/10 group-hover:from-primary/20 group-hover:to-accent/20 transition-colors">
+              <Feather className="h-5 w-5 text-primary" />
             </div>
-            <nav className="flex items-center space-x-0.5 text-sm font-medium flex-1 overflow-x-auto">
-              {navItems.map((item) => {
-                const Icon = item.icon
-                const isActive = location.pathname === item.path
-                return (
-                  <Tooltip key={item.path}>
-                    <TooltipTrigger asChild>
-                      <Link
-                        to={item.path}
-                        data-tour={item.path.replace(/\//g, '-').slice(1) || 'dashboard'}
-                        className={cn(
-                          'flex items-center justify-center p-2 rounded-lg transition-all duration-200',
-                          isActive
-                            ? 'bg-gradient-to-br from-primary/15 to-accent/10 text-primary shadow-sm'
-                            : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
-                        )}
-                      >
-                        <Icon className="h-4 w-4" />
-                      </Link>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom" className="font-medium">
-                      {item.label}
-                    </TooltipContent>
-                  </Tooltip>
-                )
-              })}
-            </nav>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={toggleTheme}
-                  className="inline-flex items-center justify-center rounded-lg p-2 transition-all duration-200 hover:bg-muted/50 text-muted-foreground hover:text-foreground"
-                  aria-label="Toggle theme"
-                >
-                  {theme === 'dark' ? (
-                    <Sun className="h-5 w-5" />
-                  ) : (
-                    <Moon className="h-5 w-5" />
+            <span className="font-display text-xl hidden sm:inline">MemoirArk</span>
+          </Link>
+
+          {/* Desktop Navigation */}
+          <nav className="hidden md:flex items-center gap-1">
+            {/* Primary nav items with labels */}
+            {primaryNav.map((item) => {
+              const Icon = item.icon
+              const isActive = location.pathname === item.path
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 h-9 rounded-lg text-sm font-medium transition-colors',
+                    item.featured 
+                      ? 'bg-gradient-to-r from-amber-500/10 to-orange-500/10 text-amber-700 dark:text-amber-400 hover:from-amber-500/20 hover:to-orange-500/20'
+                      : isActive
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                   )}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                {theme === 'dark' ? 'Light mode' : 'Dark mode'}
-              </TooltipContent>
-            </Tooltip>
+                >
+                  <Icon className="h-4 w-4" />
+                  <span>{item.label}</span>
+                </Link>
+              )
+            })}
+
+            <div className="w-px h-6 bg-border mx-2" />
+
+            {/* Dropdown menus */}
+            <NavDropdown label="My Story" items={contentMenu} icon={BookOpen} />
+            <NavDropdown label="Import" items={importMenu} icon={Upload} />
+            <NavDropdown label="Organize" items={organizeMenu} icon={FolderOpen} />
+            <NavDropdown label="More" items={moreMenu} icon={HelpCircle} />
+          </nav>
+
+          {/* Right side controls */}
+          <div className="flex items-center gap-2">
+            {/* Theme toggle */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleTheme}
+              className="h-9 w-9"
+            >
+              {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
 
             {/* User menu */}
             {user && (
-              <div className="flex items-center gap-2 ml-2 pl-2 border-l border-border/50">
-                {user.picture && (
-                  <img 
-                    src={user.picture} 
-                    alt={user.name || 'User'} 
-                    className="w-7 h-7 rounded-full"
-                  />
-                )}
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      onClick={logout}
-                      className="inline-flex items-center justify-center rounded-lg p-2 transition-all duration-200 hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600"
-                      aria-label="Sign out"
-                    >
-                      <LogOut className="h-4 w-4" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">Sign out</TooltipContent>
-                </Tooltip>
-              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="h-9 px-2 gap-2">
+                    {user.picture ? (
+                      <img src={user.picture} alt="" className="w-6 h-6 rounded-full" />
+                    ) : (
+                      <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium">
+                        {user.name?.charAt(0) || '?'}
+                      </div>
+                    )}
+                    <span className="hidden sm:inline text-sm">{user.name?.split(' ')[0]}</span>
+                    <ChevronDown className="h-3 w-3 opacity-50" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="text-sm font-medium">{user.name}</div>
+                    <div className="text-xs text-muted-foreground truncate">{user.email}</div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={logout} className="text-red-600 cursor-pointer">
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
+
+            {/* Mobile menu button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden h-9 w-9"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </Button>
           </div>
-        </header>
-        <main className="container py-8">{children}</main>
-      </div>
-    </TooltipProvider>
+        </div>
+
+        {/* Mobile Navigation */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-border/50 bg-background">
+            <nav className="container py-4 space-y-4">
+              {/* Primary */}
+              <div className="space-y-1">
+                {primaryNav.map((item) => {
+                  const Icon = item.icon
+                  const isActive = location.pathname === item.path
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={cn(
+                        'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium',
+                        isActive ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-muted'
+                      )}
+                    >
+                      <Icon className="h-5 w-5" />
+                      {item.label}
+                    </Link>
+                  )
+                })}
+              </div>
+
+              {/* Content */}
+              <div>
+                <div className="px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">My Story</div>
+                <div className="space-y-1">
+                  {contentMenu.map((item) => {
+                    const Icon = item.icon
+                    const isActive = location.pathname === item.path
+                    return (
+                      <Link
+                        key={item.path}
+                        to={item.path}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={cn(
+                          'flex items-center gap-3 px-3 py-2 rounded-lg text-sm',
+                          isActive ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-muted'
+                        )}
+                      >
+                        <Icon className="h-5 w-5" />
+                        {item.label}
+                      </Link>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Import */}
+              <div>
+                <div className="px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Import</div>
+                <div className="space-y-1">
+                  {importMenu.map((item) => {
+                    const Icon = item.icon
+                    return (
+                      <Link
+                        key={item.path}
+                        to={item.path}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-foreground hover:bg-muted"
+                      >
+                        <Icon className="h-5 w-5" />
+                        {item.label}
+                      </Link>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* More */}
+              <div>
+                <div className="px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">More</div>
+                <div className="space-y-1">
+                  {[...organizeMenu, ...moreMenu].map((item) => {
+                    const Icon = item.icon
+                    return (
+                      <Link
+                        key={item.path}
+                        to={item.path}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-foreground hover:bg-muted"
+                      >
+                        <Icon className="h-5 w-5" />
+                        {item.label}
+                      </Link>
+                    )
+                  })}
+                </div>
+              </div>
+            </nav>
+          </div>
+        )}
+      </header>
+      <main className="container py-8">{children}</main>
+    </div>
   )
 }

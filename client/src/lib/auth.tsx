@@ -15,6 +15,8 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: () => void;
+  loginWithEmail: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  signup: (email: string, password: string, name?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   setTokenFromCallback: (token: string) => void;
 }
@@ -95,6 +97,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const loginWithEmail = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        return { success: false, error: data.error || 'Login failed' };
+      }
+
+      localStorage.setItem(TOKEN_KEY, data.token);
+      setUser(data.user);
+      return { success: true };
+    } catch (error) {
+      console.error('Login error:', error);
+      return { success: false, error: 'Network error' };
+    }
+  };
+
+  const signup = async (email: string, password: string, name?: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, name }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        return { success: false, error: data.error || 'Signup failed' };
+      }
+
+      localStorage.setItem(TOKEN_KEY, data.token);
+      setUser(data.user);
+      return { success: true };
+    } catch (error) {
+      console.error('Signup error:', error);
+      return { success: false, error: 'Network error' };
+    }
+  };
+
   const setTokenFromCallback = (token: string) => {
     localStorage.setItem(TOKEN_KEY, token);
     fetchUser(token);
@@ -106,6 +154,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isLoading,
       isAuthenticated: !!user,
       login,
+      loginWithEmail,
+      signup,
       logout,
       setTokenFromCallback,
     }}>

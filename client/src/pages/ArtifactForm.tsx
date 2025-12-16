@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { artifactsApi, ArtifactCreateInput } from '@/lib/api'
+import { artifactsApi, ArtifactCreateInput, uploadsApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ArrowLeft, Save } from 'lucide-react'
+import { ArrowLeft, Save, FileUp, Loader2 } from 'lucide-react'
 import TagSuggestions from '@/components/TagSuggestions'
 import ContextAssistant from '@/components/ContextAssistant'
 
@@ -37,6 +37,11 @@ export default function ArtifactForm() {
 
   const [suggestedTagsInput, setSuggestedTagsInput] = useState('')
   const [showContextAssistant, setShowContextAssistant] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
+  const [extractionMessage, setExtractionMessage] = useState<string | null>(null)
+  const [memoryPrompts, setMemoryPrompts] = useState<string[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { data: artifact, isLoading: artifactLoading } = useQuery({
     queryKey: ['artifact', id],
@@ -86,6 +91,69 @@ export default function ArtifactForm() {
   }
 
   const isPending = createMutation.isPending || updateMutation.isPending
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setIsUploading(true)
+    setUploadedFileName(file.name)
+
+    try {
+      // Determine artifact type from file
+      let artifactType = formData.type || 'other'
+      if (file.type.startsWith('image/')) artifactType = 'photo'
+      else if (file.type.startsWith('audio/')) artifactType = 'audio'
+      else if (file.type.startsWith('video/')) artifactType = 'video'
+      else if (file.type.includes('pdf') || file.type.includes('document')) artifactType = 'document'
+
+      // Upload based on type
+      let response
+      if (file.type.startsWith('audio/')) {
+        response = await uploadsApi.uploadAudio(file, file.name, formData.sourceSystem || 'upload')
+      } else if (file.type.startsWith('image/')) {
+        response = await uploadsApi.uploadImage(file)
+      } else if (file.type === 'application/pdf' || file.type.startsWith('text/') || file.name.endsWith('.pdf') || file.name.endsWith('.txt') || file.name.endsWith('.md')) {
+        response = await uploadsApi.uploadDocument(file, file.name)
+      } else {
+        // For other files, just set the path locally
+        setFormData(prev => ({
+          ...prev,
+          type: artifactType,
+          sourcePathOrUrl: file.name,
+          shortDescription: prev.shortDescription || file.name,
+          importedFrom: 'Local upload',
+        }))
+        setIsUploading(false)
+        return
+      }
+
+      // Update form with uploaded file info and extracted text
+      setFormData(prev => ({
+        ...prev,
+        type: artifactType,
+        sourcePathOrUrl: response.file?.path || response.file?.filename ? `/uploads/${response.file.filename}` : file.name,
+        shortDescription: prev.shortDescription || file.name,
+        importedFrom: 'Local upload',
+        transcribedText: response.extractedText || prev.transcribedText || null,
+      }))
+      
+      // Show message about extraction
+      if (response.message) {
+        setExtractionMessage(response.message)
+      }
+      
+      // Set memory prompts if available (for images)
+      if (response.memoryPrompts && response.memoryPrompts.length > 0) {
+        setMemoryPrompts(response.memoryPrompts)
+      }
+    } catch (error) {
+      console.error('Upload failed:', error)
+      alert('Failed to upload file. Please try again.')
+    } finally {
+      setIsUploading(false)
+    }
+  }
 
   if (isEditing && artifactLoading) {
     return (
@@ -147,12 +215,45 @@ export default function ArtifactForm() {
 
               <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="sourcePathOrUrl">Source Path or URL</Label>
-                <Input
-                  id="sourcePathOrUrl"
-                  value={formData.sourcePathOrUrl}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, sourcePathOrUrl: e.target.value }))}
-                  placeholder="e.g., C:\Documents\journal.txt or https://..."
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="sourcePathOrUrl"
+                    value={formData.sourcePathOrUrl}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, sourcePathOrUrl: e.target.value }))}
+                    placeholder="e.g., C:\Documents\journal.txt or https://..."
+                    className="flex-1"
+                  />
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                    accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.txt"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                  >
+                    {isUploading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <FileUp className="mr-2 h-4 w-4" />
+                        Browse
+                      </>
+                    )}
+                  </Button>
+                </div>
+                {uploadedFileName && (
+                  <p className="text-xs text-muted-foreground">
+                    Uploaded: {uploadedFileName}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2 md:col-span-2">
@@ -177,7 +278,14 @@ export default function ArtifactForm() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="transcribedText">Transcribed Text</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="transcribedText">Transcribed Text</Label>
+                {extractionMessage && (
+                  <span className="text-xs text-green-600 dark:text-green-400">
+                    {extractionMessage}
+                  </span>
+                )}
+              </div>
               <Textarea
                 id="transcribedText"
                 value={formData.transcribedText || ''}
@@ -189,6 +297,27 @@ export default function ArtifactForm() {
               <p className="text-xs text-muted-foreground">
                 For journals, emails, or chat logs, paste the full text content here
               </p>
+              
+              {/* Memory Prompts from AI Image Analysis */}
+              {memoryPrompts.length > 0 && (
+                <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-800">
+                  <h4 className="font-medium text-amber-900 dark:text-amber-100 mb-2">
+                    🎙️ Noah's Interview Questions
+                  </h4>
+                  <p className="text-xs text-amber-700 dark:text-amber-300 mb-3">
+                    Based on this image, here are some questions to help you capture the memory:
+                  </p>
+                  <ul className="space-y-2">
+                    {memoryPrompts.map((prompt, idx) => (
+                      <li key={idx} className="text-sm text-amber-800 dark:text-amber-200 flex items-start gap-2">
+                        <span className="text-amber-500">•</span>
+                        <span>{prompt}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              
               <TagSuggestions
                 title={formData.shortDescription || ''}
                 summary={formData.type + ' ' + formData.sourceSystem}

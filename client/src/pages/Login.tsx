@@ -1,15 +1,24 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, BookOpen, AlertCircle } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Loader2, BookOpen, AlertCircle, Mail } from 'lucide-react';
 
 export default function Login() {
-  const { login, isAuthenticated, isLoading } = useAuth();
+  const { login, loginWithEmail, signup, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const error = searchParams.get('error');
+  const urlError = searchParams.get('error');
+
+  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [error, setError] = useState<string | null>(urlError);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
@@ -32,6 +41,28 @@ export default function Login() {
     oauth_failed: 'Authentication failed. Please try again.',
   };
 
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+
+    try {
+      if (mode === 'signup') {
+        const result = await signup(email, password, name || undefined);
+        if (!result.success) {
+          setError(result.error || 'Signup failed');
+        }
+      } else {
+        const result = await loginWithEmail(email, password);
+        if (!result.success) {
+          setError(result.error || 'Login failed');
+        }
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-amber-50 to-orange-100 dark:from-gray-900 dark:to-gray-800 p-4">
       <Card className="w-full max-w-md shadow-xl">
@@ -51,14 +82,97 @@ export default function Login() {
           {error && (
             <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400 text-sm">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              <span>{errorMessages[error] || 'An error occurred. Please try again.'}</span>
+              <span>{errorMessages[error] || error}</span>
             </div>
           )}
 
+          {/* Email/Password Form */}
+          <form onSubmit={handleEmailSubmit} className="space-y-4">
+            {mode === 'signup' && (
+              <div className="space-y-2">
+                <Label htmlFor="name">Name (optional)</Label>
+                <Input
+                  id="name"
+                  type="text"
+                  placeholder="Your name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder={mode === 'signup' ? 'At least 8 characters' : 'Your password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={mode === 'signup' ? 8 : 1}
+              />
+            </div>
+            <Button type="submit" className="w-full h-11" disabled={submitting}>
+              {submitting ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <Mail className="w-4 h-4 mr-2" />
+              )}
+              {mode === 'signup' ? 'Create Account' : 'Sign In'}
+            </Button>
+          </form>
+
+          <div className="text-center text-sm">
+            {mode === 'login' ? (
+              <p className="text-muted-foreground">
+                Don't have an account?{' '}
+                <button
+                  type="button"
+                  onClick={() => { setMode('signup'); setError(null); }}
+                  className="text-primary hover:underline font-medium"
+                >
+                  Sign up
+                </button>
+              </p>
+            ) : (
+              <p className="text-muted-foreground">
+                Already have an account?{' '}
+                <button
+                  type="button"
+                  onClick={() => { setMode('login'); setError(null); }}
+                  className="text-primary hover:underline font-medium"
+                >
+                  Sign in
+                </button>
+              </p>
+            )}
+          </div>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+            </div>
+          </div>
+
           <Button 
             onClick={login}
-            className="w-full h-12 text-base"
+            className="w-full h-11"
             variant="outline"
+            type="button"
           >
             <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
               <path
@@ -78,23 +192,8 @@ export default function Login() {
                 d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
               />
             </svg>
-            Sign in with Google
+            Google
           </Button>
-
-          <div className="text-center text-sm text-muted-foreground">
-            <p>Sign in to access your memoir and preserve your life story.</p>
-          </div>
-
-          <div className="border-t pt-4">
-            <h4 className="text-sm font-medium mb-2">What you can do with MemoirArk:</h4>
-            <ul className="text-sm text-muted-foreground space-y-1">
-              <li>• Record and organize life events</li>
-              <li>• Import photos, messages, and documents</li>
-              <li>• Create chapters and narratives</li>
-              <li>• Connect with family members</li>
-              <li>• Export your complete memoir</li>
-            </ul>
-          </div>
         </CardContent>
       </Card>
     </div>

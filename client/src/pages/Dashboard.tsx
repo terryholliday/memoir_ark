@@ -21,6 +21,13 @@ import {
   Feather,
   Heart,
 } from 'lucide-react'
+import ThisDayInYourLife from '@/components/ThisDayInYourLife'
+import TimelineVisualization from '@/components/TimelineVisualization'
+import RelationshipMap from '@/components/RelationshipMap'
+import EmotionalArc from '@/components/EmotionalArc'
+import InterviewMode from '@/components/InterviewMode'
+import LegacyLetterGenerator from '@/components/LegacyLetterGenerator'
+import ChapterGenerator from '@/components/ChapterGenerator'
 
 const INSPIRATIONAL_QUOTES = [
   { text: "Every life is a story worth telling.", author: "Unknown" },
@@ -67,6 +74,13 @@ export default function Dashboard() {
       icon: Upload,
       href: '/upload',
       color: 'bg-gradient-to-br from-emerald-500/15 to-teal-500/15 text-emerald-600 dark:text-emerald-400',
+    },
+    {
+      title: 'Bulk Upload',
+      description: 'Multiple files or ZIP',
+      icon: FolderOpen,
+      href: '/bulk-upload',
+      color: 'bg-gradient-to-br from-amber-500/15 to-yellow-500/15 text-amber-600 dark:text-amber-400',
     },
     {
       title: 'Add Artifact',
@@ -235,6 +249,35 @@ export default function Dashboard() {
           </div>
         </CardContent>
       </Card>
+
+      {/* This Day in Your Life - shows events from this date in history */}
+      <ThisDayInYourLife />
+
+      {/* Insights & Visualizations */}
+      <section>
+        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Sparkles className="w-5 h-5 text-amber-500" />
+          Insights & Visualizations
+        </h2>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <TimelineVisualization />
+          <RelationshipMap />
+          <EmotionalArc />
+          <InterviewMode />
+        </div>
+      </section>
+
+      {/* AI Writing Tools */}
+      <section>
+        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <BookOpen className="w-5 h-5 text-indigo-500" />
+          AI Writing Tools
+        </h2>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <ChapterGenerator />
+          <LegacyLetterGenerator />
+        </div>
+      </section>
     </div>
   )
 }

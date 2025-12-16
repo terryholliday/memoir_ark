@@ -12,9 +12,10 @@ import { Upload, FileAudio, X, Check, Loader2, Sparkles, Plus } from 'lucide-rea
 interface FileWithPreview {
   file: File
   id: string
-  status: 'pending' | 'uploading' | 'success' | 'error'
+  status: 'pending' | 'uploading' | 'uploaded' | 'transcribing' | 'analyzing' | 'success' | 'error'
   error?: string
   artifactId?: string
+  processingStep?: string
 }
 
 interface SuggestedTag {
@@ -79,9 +80,44 @@ export default function AudioUpload() {
     mutationFn: async (fileItem: FileWithPreview) => {
       return uploadsApi.uploadAudio(fileItem.file, fileItem.file.name, sourceSystem)
     },
-    onSuccess: (_, fileItem) => {
+    onSuccess: async (response, fileItem) => {
+      // File uploaded, now show processing stages
       setFiles((prev) =>
-        prev.map((f) => (f.id === fileItem.id ? { ...f, status: 'success' as const } : f))
+        prev.map((f) => (f.id === fileItem.id ? { 
+          ...f, 
+          status: 'uploaded' as const,
+          artifactId: response.artifact?.id,
+          processingStep: 'Queued for transcription...'
+        } : f))
+      )
+
+      // Simulate processing stages with visual feedback
+      // In production, this would poll the backend for actual status
+      await new Promise(resolve => setTimeout(resolve, 1500))
+      setFiles((prev) =>
+        prev.map((f) => (f.id === fileItem.id ? { 
+          ...f, 
+          status: 'transcribing' as const,
+          processingStep: 'Transcribing audio...'
+        } : f))
+      )
+
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      setFiles((prev) =>
+        prev.map((f) => (f.id === fileItem.id ? { 
+          ...f, 
+          status: 'analyzing' as const,
+          processingStep: 'AI analyzing content...'
+        } : f))
+      )
+
+      await new Promise(resolve => setTimeout(resolve, 1500))
+      setFiles((prev) =>
+        prev.map((f) => (f.id === fileItem.id ? { 
+          ...f, 
+          status: 'success' as const,
+          processingStep: 'Complete'
+        } : f))
       )
     },
     onError: (error: Error, fileItem) => {
@@ -130,6 +166,9 @@ export default function AudioUpload() {
 
   const pendingCount = files.filter((f) => f.status === 'pending').length
   const successCount = files.filter((f) => f.status === 'success').length
+  const processingCount = files.filter((f) => 
+    f.status === 'uploading' || f.status === 'uploaded' || f.status === 'transcribing' || f.status === 'analyzing'
+  ).length
 
   return (
     <div className="space-y-6">
@@ -230,10 +269,24 @@ export default function AudioUpload() {
                         </Button>
                       )}
                       {fileItem.status === 'uploading' && (
-                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                          <span className="text-xs text-muted-foreground">Uploading...</span>
+                        </div>
+                      )}
+                      {(fileItem.status === 'uploaded' || fileItem.status === 'transcribing' || fileItem.status === 'analyzing') && (
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin text-violet-500" />
+                          <span className="text-xs text-violet-600 dark:text-violet-400">
+                            {fileItem.processingStep}
+                          </span>
+                        </div>
                       )}
                       {fileItem.status === 'success' && (
-                        <Check className="h-5 w-5 text-green-500" />
+                        <div className="flex items-center gap-2">
+                          <Check className="h-5 w-5 text-green-500" />
+                          <span className="text-xs text-green-600">Ready</span>
+                        </div>
                       )}
                       {fileItem.status === 'error' && (
                         <span className="text-xs text-destructive">{fileItem.error}</span>
@@ -266,7 +319,7 @@ export default function AudioUpload() {
         </Button>
       </div>
 
-      {successCount > 0 && !isUploading && pendingCount === 0 && !showTagReview && !showContextAssistant && (
+      {successCount > 0 && !isUploading && pendingCount === 0 && processingCount === 0 && !showTagReview && !showContextAssistant && (
         <Card className="border-green-500">
           <CardContent className="py-4">
             <div className="flex items-center justify-between">

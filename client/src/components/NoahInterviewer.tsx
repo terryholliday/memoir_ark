@@ -401,9 +401,21 @@ export default function NoahInterviewer() {
       } catch (e) {
         console.log('Could not fetch events for greeting')
       }
+
+      // Fetch artifacts (uploaded documents) for context
+      let artifacts: Array<{ type: string; shortDescription: string; transcribedText?: string; sourceSystem?: string }> = []
+      try {
+        const artifactsResponse = await fetch('http://localhost:3001/api/artifacts')
+        if (artifactsResponse.ok) {
+          const allArtifacts = await artifactsResponse.json()
+          artifacts = allArtifacts.slice(0, 10)
+        }
+      } catch (e) {
+        console.log('Could not fetch artifacts for greeting')
+      }
       
       // If we have no data at all, use generic
-      if (!lastSession && recentEvents.length === 0) {
+      if (!lastSession && recentEvents.length === 0 && artifacts.length === 0) {
         return NOAH_OPENINGS.returning
       }
 
@@ -412,6 +424,34 @@ export default function NoahInterviewer() {
       const eventSummaries = recentEvents.map((e) => 
         `"${e.title}"${e.summary ? ` - ${e.summary.slice(0, 100)}` : ''}${e.emotionTags?.length ? ` (${e.emotionTags.slice(0, 2).join(', ')})` : ''}`
       ).join('; ')
+
+      // Build artifact summaries
+      const artifactSummaries = artifacts.map((a) => {
+        let summary = `[${a.type.toUpperCase()}] ${a.shortDescription || 'Untitled'}`
+        if (a.transcribedText) {
+          summary += `: "${a.transcribedText.slice(0, 200)}${a.transcribedText.length > 200 ? '...' : ''}"`
+        }
+        return summary
+      }).join('\n')
+
+      // Determine if we have sparse data (just dates, no real content)
+      const hasRichContent = recentEvents.some(e => 
+        (e.summary && e.summary.length > 50) || 
+        (e.emotionTags && e.emotionTags.length > 0)
+      ) || (sessionData?.topics?.length > 0 && sessionData.topics.some((t: string) => t.length > 20))
+      || artifacts.some(a => a.transcribedText && a.transcribedText.length > 50)
+      
+      const eventCount = recentEvents.length
+      const artifactCount = artifacts.length
+      const hasArtifacts = artifactCount > 0
+      const isSparseData = eventCount <= 3 && !hasRichContent && !hasArtifacts
+
+      // Check if user has birth date but hasn't enabled Astro mode yet
+      const hasBirthDate = recentEvents.some(e => 
+        e.title?.toLowerCase().includes('birth') || 
+        e.title?.toLowerCase().includes('born')
+      )
+      const astroNotEnabled = !birthData.astroEnabled
 
       const prompt = `You are Noah, a master interviewer combining Barbara Walters' precision with Oprah's empathy. A returning user just opened their memoir session.
 
@@ -426,12 +466,64 @@ ${sessionData ? `
 RECENT EVENTS IN THEIR MEMOIR:
 ${eventSummaries || 'None yet'}
 
+UPLOADED ARTIFACTS (documents, photos, audio, etc.):
+${artifactSummaries || 'None yet'}
+ARTIFACT COUNT: ${artifactCount}
+
+DATA RICHNESS: ${isSparseData ? 'SPARSE - User has only basic dates/milestones, no detailed stories yet' : 'Has some content to work with'}
+EVENT COUNT: ${eventCount}
+HAS BIRTH DATE: ${hasBirthDate ? 'YES' : 'NO'}
+ASTRO MODE ENABLED: ${birthData.astroEnabled ? 'YES' : 'NO'}
+
+${hasArtifacts && eventCount === 0 ? `
+ARTIFACTS AVAILABLE (IMPORTANT):
+The user has uploaded ${artifactCount} artifact(s) but hasn't created any memoir events yet. Your job is to:
+1. Acknowledge that you've seen their uploaded materials
+2. Reference SPECIFIC details from the artifacts listed above
+3. Ask questions that help them turn these artifacts into memoir entries
+4. Show genuine curiosity about the stories behind these documents/photos/recordings
+
+Example: "I see you've uploaded some materials — [reference specific artifact]. Tell me more about this. What was happening in your life when...?"
+` : hasBirthDate && astroNotEnabled ? `
+ASTRO MODE INVITATION (IMPORTANT):
+The user has entered their birth date but hasn't enabled Astro Mode yet. This is a perfect opportunity to introduce them to this feature.
+
+Your greeting should:
+1. Warmly acknowledge their birth date as the starting point of their story
+2. Introduce Astro Mode as an optional lens: "As Above, So Below: As Within, So Without"
+3. Explain that Astro Mode can overlay the movements of the stars onto the events of their life — showing how cosmic cycles may have correlated with their personal milestones, transitions, and transformative moments
+4. Make it clear this is OPTIONAL and the memoir works perfectly without it
+5. Ask if they'd like to enable Astro Mode (they can click the ✧ Astro button in the header)
+6. Keep it intriguing but not pushy — some people love this, others prefer a purely secular approach
+
+Example tone: "I notice you've marked your birth date — the moment your story began. There's an ancient idea: 'As Above, So Below.' Some find meaning in seeing how the movements of the stars correlate with the chapters of their lives. If you're curious, you can enable Astro Mode — it won't change your memoir, just add an optional cosmic lens. Would that interest you?"
+` : isSparseData ? `
+SPARSE DATA PROTOCOL (IMPORTANT):
+The user has only entered basic milestone dates (like birth, graduation) without detailed memories. Your job is to help them BUILD their memoir, not interview them about sparse data points.
+
+Your greeting should:
+1. Warmly acknowledge they're getting started
+2. Explain that the best memoirs are built from source materials — photos, letters, journals, messages, documents
+3. Ask if they have any photos, old letters, journals, text message exports, or documents they'd like to upload
+4. Mention that once you can see their materials, you can ask much better questions about their actual experiences
+5. Make it feel like an invitation, not a demand
+
+Example tone: "The richest memoirs come from the artifacts of our lives — the photos we kept, the letters we saved, the messages we sent. Do you have any of those you'd like to share? Once I can see what you've collected, I'll have a much better sense of the questions to ask."
+` : `
 Generate a warm, personalized greeting that:
-1. References something SPECIFIC from their last session or recent events
+1. References something SPECIFIC from their last session or recent events — ONLY if data exists above
 2. Shows you remember and care about their story
 3. Ends with ONE evocative, open-ended question that picks up a thread or explores something they haven't fully unpacked
+`}
 
-Be warm but not sycophantic. Be specific, not generic. Channel Oprah's "I see you" energy.
+CRITICAL ANTI-HALLUCINATION RULES:
+- ONLY reference details that appear VERBATIM in the data above
+- NEVER invent or assume details that are not explicitly listed
+- If the data says "High school graduation" — you know ONLY those words. Do NOT add caps being tossed, feelings of excitement, or any other fabricated details
+- If no meaningful data exists, give a simple warm welcome without pretending to remember things
+- A fabricated greeting destroys trust. When in doubt, be general rather than specific.
+
+Be warm but not sycophantic. Channel Oprah's "I see you" energy.
 Keep it to 2-3 short paragraphs max. No JSON, just the greeting text.`
 
       const response = await fetch('http://localhost:3001/api/ai/noah', {
@@ -824,25 +916,26 @@ Keep it to 2-3 short paragraphs max. No JSON, just the greeting text.`
             Exit
           </Button>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <div className="text-sm font-medium text-foreground/70 flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-primary/60 animate-pulse" />
-              Conversation with Noah
+              Noah
             </div>
-            
-            {/* Astro Mode Toggle */}
-            <button
-              onClick={() => setShowAstroSettings(true)}
-              className={`text-sm px-3 py-1.5 rounded-full border transition-colors font-medium ${
-                birthData.astroEnabled && birthData.time && birthData.place
-                  ? 'bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 border-violet-300 dark:border-violet-700'
-                  : 'bg-white dark:bg-slate-800 text-muted-foreground hover:text-violet-600 hover:border-violet-300 border-border'
-              }`}
-              title="Astro Mode Settings"
-            >
-              ✧ {birthData.astroEnabled && birthData.time && birthData.place ? 'Astro On' : 'Astro'}
-            </button>
           </div>
+          
+          {/* Astro Mode Toggle - Prominent placement */}
+          <button
+            onClick={() => setShowAstroSettings(true)}
+            className={`text-sm px-4 py-2 rounded-full border-2 transition-all font-medium flex items-center gap-2 ${
+              birthData.astroEnabled && birthData.time && birthData.place
+                ? 'bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 border-violet-400 dark:border-violet-600 shadow-sm'
+                : 'bg-white dark:bg-slate-800 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/30 border-violet-300 dark:border-violet-700'
+            }`}
+            title="Astro Mode - View your life through the stars"
+          >
+            <span className="text-lg">✦</span>
+            {birthData.astroEnabled && birthData.time && birthData.place ? 'Astro Mode On' : 'Astro Mode'}
+          </button>
           
           <div className="flex gap-2">
             {userMessageCount >= 2 && !isSaved && (

@@ -44,6 +44,7 @@ import FamilyTree from './pages/FamilyTree'
 import VoiceCapture from './pages/VoiceCapture'
 import FamilyCollaboration from './pages/FamilyCollaboration'
 import CloudImport from './pages/CloudImport'
+import BulkUpload from './pages/BulkUpload'
 import NoahInterviewer from './components/NoahInterviewer'
 
 function App() {
@@ -90,6 +91,13 @@ function App() {
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/login/callback" element={<LoginCallback />} />
+        
+        {/* Noah Interview - Full screen, outside main layout */}
+        <Route path="/interview" element={
+          <ProtectedRoute>
+            <NoahInterviewer />
+          </ProtectedRoute>
+        } />
         
         {/* Protected routes */}
         <Route path="/*" element={
@@ -141,6 +149,7 @@ function App() {
                 <Route path="/voice-capture" element={<VoiceCapture />} />
                 <Route path="/collaborate" element={<FamilyCollaboration />} />
                 <Route path="/import/cloud" element={<CloudImport />} />
+                <Route path="/bulk-upload" element={<BulkUpload />} />
                 <Route path="/interview" element={<NoahInterviewer />} />
               </Routes>
             </Layout>

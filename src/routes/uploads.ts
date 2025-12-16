@@ -2,7 +2,9 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import AdmZip from 'adm-zip';
 import { prisma } from '../lib/prisma';
+import { extractContent } from '../services/contentExtractor';
 
 export const uploadRoutes = Router();
 
@@ -39,6 +41,11 @@ const audioFilter = (req: Request, file: Express.Multer.File, cb: multer.FileFil
     'audio/webm',       // .webm
     'audio/flac',       // .flac
     'audio/x-flac',     // .flac
+    'audio/x-ms-wma',   // .wma (Windows Media Audio)
+    'audio/wma',        // .wma
+    'audio/amr',        // .amr (voice recordings)
+    'audio/3gpp',       // .3gp (phone recordings)
+    'audio/3gpp2',      // .3g2
   ];
 
   if (allowedTypes.includes(file.mimetype)) {
@@ -99,6 +106,72 @@ const uploadImage = multer({
   },
 });
 
+// Storage for documents (PDFs, text files, etc.)
+const documentStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const docsDir = path.join(uploadsDir, 'documents');
+    if (!fs.existsSync(docsDir)) {
+      fs.mkdirSync(docsDir, { recursive: true });
+    }
+    cb(null, docsDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const ext = path.extname(file.originalname);
+    cb(null, `doc-${uniqueSuffix}${ext}`);
+  },
+});
+
+const documentFilter = (req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  const allowedTypes = [
+    'application/pdf',
+    'text/plain',
+    'text/markdown',
+    'text/csv',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ];
+  const allowedExtensions = ['.pdf', '.txt', '.md', '.csv', '.doc', '.docx'];
+  const ext = path.extname(file.originalname).toLowerCase();
+
+  if (allowedTypes.includes(file.mimetype) || allowedExtensions.includes(ext)) {
+    cb(null, true);
+  } else {
+    cb(new Error(`Invalid file type: ${file.mimetype}. Only documents are allowed.`));
+  }
+};
+
+const uploadDocument = multer({
+  storage: documentStorage,
+  fileFilter: documentFilter,
+  limits: {
+    fileSize: 100 * 1024 * 1024, // 100MB max for documents
+  },
+});
+
+// Storage for bulk uploads (any file type)
+const bulkStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const bulkDir = path.join(uploadsDir, 'bulk');
+    if (!fs.existsSync(bulkDir)) {
+      fs.mkdirSync(bulkDir, { recursive: true });
+    }
+    cb(null, bulkDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const ext = path.extname(file.originalname);
+    cb(null, `bulk-${uniqueSuffix}${ext}`);
+  },
+});
+
+const uploadBulk = multer({
+  storage: bulkStorage,
+  limits: {
+    fileSize: 500 * 1024 * 1024, // 500MB max for bulk/zip
+  },
+});
+
 // POST /api/uploads/audio - Upload audio file and create artifact
 uploadRoutes.post('/audio', upload.single('audio'), async (req: Request, res: Response) => {
   try {
@@ -119,6 +192,17 @@ uploadRoutes.post('/audio', upload.single('audio'), async (req: Request, res: Re
       },
     });
 
+    // Extract/transcribe content synchronously and return for user review
+    const filePath = path.join(uploadsDir, req.file.filename);
+    let extractedText = '';
+    try {
+      const result = await extractContent(filePath, req.file.mimetype);
+      extractedText = result.text || '';
+      console.log(`Audio transcription complete: ${extractedText.length} chars`);
+    } catch (err) {
+      console.error('Audio transcription error:', err);
+    }
+
     res.status(201).json({
       artifact,
       file: {
@@ -127,6 +211,8 @@ uploadRoutes.post('/audio', upload.single('audio'), async (req: Request, res: Re
         size: req.file.size,
         mimetype: req.file.mimetype,
       },
+      extractedText,
+      message: extractedText ? 'Audio uploaded and transcribed. Review below.' : 'Audio uploaded. Transcription not available (check OpenAI API key).',
     });
   } catch (error) {
     console.error('Error uploading audio:', error);
@@ -198,6 +284,125 @@ uploadRoutes.delete('/:filename', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error deleting file:', error);
     res.status(500).json({ error: 'Failed to delete file' });
+  }
+});
+
+// POST /api/uploads/image - Upload image and create artifact (alias for /photo)
+uploadRoutes.post('/image', uploadImage.single('image'), async (req: Request, res: Response) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image provided' });
+    }
+
+    const { shortDescription, sourceSystem } = req.body;
+    const imagesDir = path.join(uploadsDir, 'images');
+
+    const artifact = await prisma.artifact.create({
+      data: {
+        type: 'photo',
+        sourceSystem: sourceSystem || 'upload',
+        sourcePathOrUrl: `/uploads/images/${req.file.filename}`,
+        shortDescription: shortDescription || req.file.originalname,
+        importedFrom: req.file.originalname,
+      },
+    });
+
+    // Analyze image synchronously and return for user review
+    const filePath = path.join(imagesDir, req.file.filename);
+    let extractedText = '';
+    let memoryPrompts: string[] = [];
+    let estimatedDate: string | undefined;
+    try {
+      const result = await extractContent(filePath, req.file.mimetype);
+      extractedText = result.analysis || result.text || '';
+      memoryPrompts = result.memoryPrompts || [];
+      estimatedDate = result.estimatedDate;
+      console.log(`Image analysis complete: ${extractedText.length} chars, ${memoryPrompts.length} prompts`);
+    } catch (err) {
+      console.error('Image analysis error:', err);
+    }
+
+    res.status(201).json({
+      artifact,
+      file: {
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        size: req.file.size,
+        mimetype: req.file.mimetype,
+        path: `/uploads/images/${req.file.filename}`,
+      },
+      extractedText,
+      memoryPrompts,
+      estimatedDate,
+      message: extractedText ? 'Image uploaded and analyzed. Review the AI description below.' : 'Image uploaded. AI analysis not available (check OpenAI API key).',
+    });
+  } catch (error) {
+    console.error('Error uploading image:', error);
+    if (req.file) {
+      const imagesDir = path.join(uploadsDir, 'images');
+      fs.unlinkSync(path.join(imagesDir, req.file.filename));
+    }
+    res.status(500).json({ error: 'Failed to upload image' });
+  }
+});
+
+// POST /api/uploads/document - Upload document (PDF, text) and extract content
+uploadRoutes.post('/document', uploadDocument.single('document'), async (req: Request, res: Response) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No document provided' });
+    }
+
+    const { shortDescription, sourceSystem } = req.body;
+    const docsDir = path.join(uploadsDir, 'documents');
+
+    // Determine document type
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    let docType = 'document';
+    if (ext === '.pdf') docType = 'document';
+    else if (['.txt', '.md'].includes(ext)) docType = 'journal';
+    else if (ext === '.csv') docType = 'document';
+
+    const artifact = await prisma.artifact.create({
+      data: {
+        type: docType,
+        sourceSystem: sourceSystem || 'upload',
+        sourcePathOrUrl: `/uploads/documents/${req.file.filename}`,
+        shortDescription: shortDescription || req.file.originalname,
+        importedFrom: req.file.originalname,
+      },
+    });
+
+    // Extract content synchronously and return for user review
+    const filePath = path.join(docsDir, req.file.filename);
+    let extractedText = '';
+    try {
+      const result = await extractContent(filePath, req.file.mimetype);
+      extractedText = result.text || '';
+      console.log(`Document extraction complete: ${extractedText.length} chars`);
+    } catch (err) {
+      console.error('Document extraction error:', err);
+    }
+
+    res.status(201).json({
+      artifact,
+      file: {
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        size: req.file.size,
+        mimetype: req.file.mimetype,
+        path: `/uploads/documents/${req.file.filename}`,
+      },
+      extractedText,
+      message: extractedText ? 'Document uploaded and text extracted. Review below.' : 'Document uploaded. Could not extract text automatically.',
+    });
+  } catch (error) {
+    console.error('Error uploading document:', error);
+    if (req.file) {
+      const docsDir = path.join(uploadsDir, 'documents');
+      fs.unlinkSync(path.join(docsDir, req.file.filename));
+    }
+    res.status(500).json({ error: 'Failed to upload document' });
   }
 });
 
@@ -284,6 +489,19 @@ uploadRoutes.post('/photo/analyze', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/uploads/documents/:filename - Serve uploaded document
+uploadRoutes.get('/documents/:filename', (req: Request, res: Response) => {
+  const { filename } = req.params;
+  const docsDir = path.join(uploadsDir, 'documents');
+  const filePath = path.join(docsDir, filename);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'Document not found' });
+  }
+
+  res.sendFile(filePath);
+});
+
 // GET /api/uploads/images/:filename - Serve uploaded image
 uploadRoutes.get('/images/:filename', (req: Request, res: Response) => {
   const { filename } = req.params;
@@ -295,4 +513,208 @@ uploadRoutes.get('/images/:filename', (req: Request, res: Response) => {
   }
 
   res.sendFile(filePath);
+});
+
+// Helper to determine artifact type from file extension
+function getArtifactTypeFromFile(filename: string): string {
+  const ext = path.extname(filename).toLowerCase();
+  const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif', '.bmp', '.tiff'];
+  const audioExts = ['.mp3', '.wav', '.m4a', '.ogg', '.flac', '.wma', '.aac', '.amr'];
+  const videoExts = ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.wmv', '.flv'];
+  const docExts = ['.pdf', '.doc', '.docx', '.txt', '.md', '.rtf'];
+  
+  if (imageExts.includes(ext)) return 'photo';
+  if (audioExts.includes(ext)) return 'audio';
+  if (videoExts.includes(ext)) return 'video';
+  if (docExts.includes(ext)) return 'document';
+  return 'other';
+}
+
+// Helper to get mime type from extension
+function getMimeTypeFromExt(filename: string): string {
+  const ext = path.extname(filename).toLowerCase();
+  const mimeMap: Record<string, string> = {
+    '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+    '.gif': 'image/gif', '.webp': 'image/webp', '.pdf': 'application/pdf',
+    '.txt': 'text/plain', '.md': 'text/markdown', '.mp3': 'audio/mpeg',
+    '.wav': 'audio/wav', '.m4a': 'audio/mp4', '.mp4': 'video/mp4',
+    '.doc': 'application/msword', '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  };
+  return mimeMap[ext] || 'application/octet-stream';
+}
+
+// POST /api/uploads/bulk - Upload multiple files or a ZIP archive
+uploadRoutes.post('/bulk', uploadBulk.array('files', 100), async (req: Request, res: Response) => {
+  try {
+    const files = req.files as Express.Multer.File[];
+    if (!files || files.length === 0) {
+      return res.status(400).json({ error: 'No files provided' });
+    }
+
+    const { sourceSystem } = req.body;
+    const results: { success: any[]; failed: any[]; extracted: number } = {
+      success: [],
+      failed: [],
+      extracted: 0,
+    };
+
+    const bulkDir = path.join(uploadsDir, 'bulk');
+    const processedDir = path.join(uploadsDir, 'processed');
+    if (!fs.existsSync(processedDir)) {
+      fs.mkdirSync(processedDir, { recursive: true });
+    }
+
+    // Process each uploaded file
+    for (const file of files) {
+      const filePath = path.join(bulkDir, file.filename);
+
+      // Check if it's a ZIP file
+      if (file.originalname.toLowerCase().endsWith('.zip') || file.mimetype === 'application/zip') {
+        try {
+          const zip = new AdmZip(filePath);
+          const zipEntries = zip.getEntries();
+
+          for (const entry of zipEntries) {
+            // Skip directories and hidden files
+            if (entry.isDirectory || entry.entryName.startsWith('.') || entry.entryName.includes('__MACOSX')) {
+              continue;
+            }
+
+            const entryName = path.basename(entry.entryName);
+            const artifactType = getArtifactTypeFromFile(entryName);
+            
+            // Skip unsupported file types
+            if (artifactType === 'other') continue;
+
+            // Extract file
+            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+            const ext = path.extname(entryName);
+            const newFilename = `extracted-${uniqueSuffix}${ext}`;
+            
+            // Determine destination based on type
+            let destDir = processedDir;
+            let urlPath = `/uploads/processed/${newFilename}`;
+            if (artifactType === 'photo') {
+              destDir = path.join(uploadsDir, 'images');
+              if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+              urlPath = `/uploads/images/${newFilename}`;
+            } else if (artifactType === 'audio') {
+              destDir = uploadsDir;
+              urlPath = `/uploads/${newFilename}`;
+            } else if (artifactType === 'document') {
+              destDir = path.join(uploadsDir, 'documents');
+              if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+              urlPath = `/uploads/documents/${newFilename}`;
+            }
+
+            const destPath = path.join(destDir, newFilename);
+            zip.extractEntryTo(entry, destDir, false, true, false, newFilename);
+
+            // Create artifact
+            try {
+              const artifact = await prisma.artifact.create({
+                data: {
+                  type: artifactType,
+                  sourceSystem: sourceSystem || 'bulk-upload',
+                  sourcePathOrUrl: urlPath,
+                  shortDescription: entryName,
+                  importedFrom: `${file.originalname}/${entry.entryName}`,
+                },
+              });
+
+              // Queue content extraction (async, don't wait)
+              const mimeType = getMimeTypeFromExt(entryName);
+              extractContent(destPath, mimeType, artifact.id).catch(err => 
+                console.error(`Extraction error for ${entryName}:`, err)
+              );
+
+              results.success.push({
+                id: artifact.id,
+                filename: entryName,
+                type: artifactType,
+                source: 'zip',
+              });
+              results.extracted++;
+            } catch (err) {
+              results.failed.push({ filename: entryName, error: 'Failed to create artifact' });
+            }
+          }
+
+          // Clean up ZIP file
+          fs.unlinkSync(filePath);
+        } catch (err) {
+          console.error('ZIP extraction error:', err);
+          results.failed.push({ filename: file.originalname, error: 'Failed to extract ZIP' });
+        }
+      } else {
+        // Regular file - move to appropriate directory and create artifact
+        const artifactType = getArtifactTypeFromFile(file.originalname);
+        
+        if (artifactType === 'other') {
+          results.failed.push({ filename: file.originalname, error: 'Unsupported file type' });
+          fs.unlinkSync(filePath);
+          continue;
+        }
+
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        const ext = path.extname(file.originalname);
+        const newFilename = `bulk-${uniqueSuffix}${ext}`;
+
+        let destDir = processedDir;
+        let urlPath = `/uploads/processed/${newFilename}`;
+        if (artifactType === 'photo') {
+          destDir = path.join(uploadsDir, 'images');
+          if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+          urlPath = `/uploads/images/${newFilename}`;
+        } else if (artifactType === 'audio') {
+          destDir = uploadsDir;
+          urlPath = `/uploads/${newFilename}`;
+        } else if (artifactType === 'document') {
+          destDir = path.join(uploadsDir, 'documents');
+          if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+          urlPath = `/uploads/documents/${newFilename}`;
+        }
+
+        const destPath = path.join(destDir, newFilename);
+        fs.renameSync(filePath, destPath);
+
+        try {
+          const artifact = await prisma.artifact.create({
+            data: {
+              type: artifactType,
+              sourceSystem: sourceSystem || 'bulk-upload',
+              sourcePathOrUrl: urlPath,
+              shortDescription: file.originalname,
+              importedFrom: file.originalname,
+            },
+          });
+
+          // Queue content extraction (async)
+          extractContent(destPath, file.mimetype, artifact.id).catch(err =>
+            console.error(`Extraction error for ${file.originalname}:`, err)
+          );
+
+          results.success.push({
+            id: artifact.id,
+            filename: file.originalname,
+            type: artifactType,
+            source: 'direct',
+          });
+        } catch (err) {
+          results.failed.push({ filename: file.originalname, error: 'Failed to create artifact' });
+        }
+      }
+    }
+
+    res.status(201).json({
+      message: `Processed ${results.success.length} files successfully${results.extracted > 0 ? ` (${results.extracted} extracted from ZIP)` : ''}`,
+      success: results.success,
+      failed: results.failed,
+      total: results.success.length,
+      failedCount: results.failed.length,
+    });
+  } catch (error) {
+    console.error('Bulk upload error:', error);
+    res.status(500).json({ error: 'Failed to process bulk upload' });
+  }
 });
