@@ -26,6 +26,7 @@ import { noahRoutes } from './routes/noah';
 import { cloudStorageRoutes } from './routes/cloudStorage';
 import { authRoutes } from './routes/auth';
 import { spotifyRoutes } from './routes/spotify';
+import { insightsRoutes } from './routes/insights';
 
 dotenv.config();
 
@@ -62,6 +63,7 @@ app.use('/api/ai', noahRoutes);
 app.use('/api/cloud', cloudStorageRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/spotify', spotifyRoutes);
+app.use('/api/insights', insightsRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

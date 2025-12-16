@@ -6,6 +6,7 @@ import OnboardingTour, { useTourState } from './components/OnboardingTour'
 import NoahGuide from './components/NoahGuide'
 import ProtectedRoute from './components/ProtectedRoute'
 import Login from './pages/Login'
+import Landing from './pages/Landing'
 import LoginCallback from './pages/LoginCallback'
 import Dashboard from './pages/Dashboard'
 import EventList from './pages/EventList'
@@ -46,6 +47,7 @@ import FamilyCollaboration from './pages/FamilyCollaboration'
 import CloudImport from './pages/CloudImport'
 import BulkUpload from './pages/BulkUpload'
 import NoahInterviewer from './components/NoahInterviewer'
+import Insights from './pages/Insights'
 
 function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -89,6 +91,7 @@ function App() {
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Routes>
         {/* Public routes */}
+        <Route path="/welcome" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/login/callback" element={<LoginCallback />} />
         
@@ -151,6 +154,7 @@ function App() {
                 <Route path="/import/cloud" element={<CloudImport />} />
                 <Route path="/bulk-upload" element={<BulkUpload />} />
                 <Route path="/interview" element={<NoahInterviewer />} />
+                <Route path="/insights" element={<Insights />} />
               </Routes>
             </Layout>
           </ProtectedRoute>

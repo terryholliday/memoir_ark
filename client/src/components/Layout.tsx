@@ -4,7 +4,7 @@ import {
   Moon, Sun, Home, Calendar, BookOpen, Users, FileText, Sparkles, 
   Clock, Search, Download, Tag, FolderOpen, Upload, Music, 
   HelpCircle, Feather, LogOut, MessageCircle, Menu, X, ChevronDown,
-  TreePine, Mic, Package, FileArchive
+  TreePine, Mic, Package, FileArchive, Lightbulb
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth'
@@ -34,6 +34,7 @@ export default function Layout({ children, theme, toggleTheme }: LayoutProps) {
     { path: '/', label: 'Home', icon: Home },
     { path: '/wizard', label: 'Talk to Noah', icon: MessageCircle, featured: true },
     { path: '/timeline', label: 'Timeline', icon: Clock },
+    { path: '/insights', label: 'Insights', icon: Lightbulb },
   ]
 
   // Dropdown menus

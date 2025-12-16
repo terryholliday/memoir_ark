@@ -21,7 +21,6 @@ import {
   Star,
   MessageCircle,
   FileText,
-  Download,
   Shield,
   Loader2,
   Mail,
