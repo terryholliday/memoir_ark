@@ -40,6 +40,7 @@ model Person {
   relationshipType String             @default("")
   notes            String             @default("")
   isPrimary        Boolean            @default(false)
+  tags             String             @default("[]")
   eventLinks       EventPerson[]
   artifactLinks    ArtifactPerson[]
   collectionLinks  CollectionPerson[]

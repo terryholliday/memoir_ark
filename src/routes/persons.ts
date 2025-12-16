@@ -10,6 +10,7 @@ const personCreateSchema = z.object({
   relationshipType: z.string().optional().default(''),
   notes: z.string().optional().default(''),
   isPrimary: z.boolean().optional().default(false),
+  tags: z.array(z.string()).optional().default([]),
 });
 
 const personUpdateSchema = personCreateSchema.partial();
@@ -102,6 +103,7 @@ personRoutes.post('/', async (req: Request, res: Response) => {
         relationshipType: data.relationshipType,
         notes: data.notes,
         isPrimary: data.isPrimary,
+        tags: JSON.stringify(data.tags || []),
       },
     });
 
@@ -133,9 +135,15 @@ personRoutes.put('/:id', async (req: Request, res: Response) => {
 
     const data = validationResult.data;
 
+    // Convert tags array to JSON string if present
+    const updateData: any = { ...data };
+    if (data.tags !== undefined) {
+      updateData.tags = JSON.stringify(data.tags);
+    }
+
     const person = await prisma.person.update({
       where: { id },
-      data,
+      data: updateData,
     });
 
     res.json(person);

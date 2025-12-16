@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Plus, Pencil, Trash2, BookOpen } from 'lucide-react'
+import { Plus, Pencil, Trash2, BookOpen, Sparkles, Info } from 'lucide-react'
 
 export default function ChaptersManage() {
   const queryClient = useQueryClient()
@@ -95,13 +95,43 @@ export default function ChaptersManage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Manage Chapters</h1>
-          <p className="text-muted-foreground">Edit chapter titles, numbers, and year ranges</p>
+          <p className="text-muted-foreground">Organize your memoir into meaningful chapters</p>
         </div>
         <Button onClick={() => setShowForm(true)}>
           <Plus className="mr-2 h-4 w-4" />
           New Chapter
         </Button>
       </div>
+
+      {/* Guidance Card */}
+      <Card className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 border-amber-200 dark:border-amber-800">
+        <CardContent className="pt-6">
+          <div className="flex gap-4">
+            <div className="flex-shrink-0">
+              <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center">
+                <Sparkles className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <h3 className="font-semibold text-amber-900 dark:text-amber-100">Two Ways to Build Your Chapters</h3>
+              <div className="text-sm text-amber-800 dark:text-amber-200 space-y-2">
+                <p className="flex items-start gap-2">
+                  <span className="font-medium">1.</span>
+                  <span><strong>Add chapters manually</strong> if you already know your chapter titles — click "New Chapter" above to get started.</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="font-medium">2.</span>
+                  <span><strong>Let Noah help</strong> — as you share your story through interviews and events, Noah will analyze your narrative and suggest chapter titles that capture the themes and turning points of your life.</span>
+                </p>
+              </div>
+              <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1 mt-3">
+                <Info className="h-3 w-3" />
+                You can always rename or reorganize chapters later as your memoir evolves.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {showForm && (
         <Card>

@@ -7,8 +7,37 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { ArrowLeft, Save } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { ArrowLeft, Save, X, Plus } from 'lucide-react'
 import TagSuggestions from '@/components/TagSuggestions'
+
+// Role to relationship type mapping
+const ROLE_TO_RELATIONSHIP: Record<string, string> = {
+  // Family
+  mother: 'Family', mom: 'Family', father: 'Family', dad: 'Family',
+  brother: 'Family', sister: 'Family', sibling: 'Family',
+  son: 'Family', daughter: 'Family', child: 'Family',
+  grandmother: 'Family', grandfather: 'Family', grandma: 'Family', grandpa: 'Family',
+  aunt: 'Family', uncle: 'Family', cousin: 'Family',
+  nephew: 'Family', niece: 'Family',
+  'step-mother': 'Family', 'step-father': 'Family', 'step-brother': 'Family', 'step-sister': 'Family',
+  'mother-in-law': 'Family', 'father-in-law': 'Family',
+  // Romantic
+  wife: 'Romantic', husband: 'Romantic', spouse: 'Romantic', partner: 'Romantic',
+  boyfriend: 'Romantic', girlfriend: 'Romantic', fiancé: 'Romantic', fiancée: 'Romantic',
+  ex: 'Romantic', 'ex-wife': 'Romantic', 'ex-husband': 'Romantic', 'ex-boyfriend': 'Romantic', 'ex-girlfriend': 'Romantic',
+  // Professional
+  boss: 'Professional', manager: 'Professional', supervisor: 'Professional',
+  coworker: 'Professional', colleague: 'Professional', employee: 'Professional',
+  mentor: 'Professional', mentee: 'Professional',
+  teacher: 'Professional', professor: 'Professional', instructor: 'Professional',
+  student: 'Professional',
+  // Social
+  friend: 'Social', 'best friend': 'Social', acquaintance: 'Social',
+  neighbor: 'Social', roommate: 'Social',
+  // Other
+  therapist: 'Professional', doctor: 'Professional', coach: 'Professional',
+}
 
 export default function PersonForm() {
   const { id } = useParams<{ id: string }>()
@@ -22,7 +51,33 @@ export default function PersonForm() {
     relationshipType: '',
     notes: '',
     isPrimary: false,
+    tags: [],
   })
+  const [newTag, setNewTag] = useState('')
+
+  // Auto-fill relationship type based on role
+  const handleRoleChange = (role: string) => {
+    const normalizedRole = role.toLowerCase().trim()
+    const relationshipType = ROLE_TO_RELATIONSHIP[normalizedRole]
+    
+    setFormData((prev) => ({
+      ...prev,
+      role,
+      // Only auto-fill if relationship type is empty or was auto-filled before
+      relationshipType: relationshipType && !prev.relationshipType ? relationshipType : prev.relationshipType,
+    }))
+  }
+
+  const handleAddCustomTag = () => {
+    const tag = newTag.trim().toLowerCase()
+    if (tag && !formData.tags?.includes(tag)) {
+      setFormData((prev) => ({
+        ...prev,
+        tags: [...(prev.tags || []), tag],
+      }))
+      setNewTag('')
+    }
+  }
 
   const { data: person, isLoading: personLoading } = useQuery({
     queryKey: ['person', id],
@@ -32,12 +87,22 @@ export default function PersonForm() {
 
   useEffect(() => {
     if (person) {
+      // Parse tags from JSON string if needed
+      let tags: string[] = []
+      if (person.tags) {
+        try {
+          tags = typeof person.tags === 'string' ? JSON.parse(person.tags) : person.tags
+        } catch {
+          tags = []
+        }
+      }
       setFormData({
         name: person.name,
         role: person.role,
         relationshipType: person.relationshipType,
         notes: person.notes,
         isPrimary: person.isPrimary,
+        tags,
       })
     }
   }, [person])
@@ -119,7 +184,7 @@ export default function PersonForm() {
                 <Input
                   id="role"
                   value={formData.role}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, role: e.target.value }))}
+                  onChange={(e) => handleRoleChange(e.target.value)}
                   placeholder="e.g., mother, friend, boss"
                 />
               </div>
@@ -156,13 +221,68 @@ export default function PersonForm() {
                 rows={6}
                 className="font-narrative"
               />
+            </div>
+
+            {/* Tags */}
+            <div className="space-y-2">
+              <Label>Tags</Label>
+              {(formData.tags?.length ?? 0) > 0 && (
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {formData.tags?.map((tag) => (
+                    <Badge key={tag} variant="secondary" className="flex items-center gap-1">
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => setFormData((prev) => ({
+                          ...prev,
+                          tags: prev.tags?.filter((t) => t !== tag) || [],
+                        }))}
+                        className="hover:text-destructive"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
               <TagSuggestions
                 title={formData.name}
-                summary={`${formData.role} ${formData.relationshipType}`}
+                summary={`${formData.role || ''} ${formData.relationshipType || ''}`}
                 notes={formData.notes || ''}
-                currentTags={[]}
-                onAddTag={() => {}}
+                currentTags={formData.tags || []}
+                onAddTag={(tag) => {
+                  if (!formData.tags?.includes(tag)) {
+                    setFormData((prev) => ({
+                      ...prev,
+                      tags: [...(prev.tags || []), tag],
+                    }))
+                  }
+                }}
               />
+              {/* Custom tag input */}
+              <div className="flex gap-2 mt-2">
+                <Input
+                  value={newTag}
+                  onChange={(e) => setNewTag(e.target.value)}
+                  placeholder="Add custom tag..."
+                  className="flex-1"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleAddCustomTag()
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={handleAddCustomTag}
+                  disabled={!newTag.trim()}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
 
             <div className="flex justify-end gap-4">

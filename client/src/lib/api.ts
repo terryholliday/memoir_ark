@@ -45,6 +45,7 @@ export interface Person {
   relationshipType: string
   notes: string
   isPrimary: boolean
+  tags: string
   createdAt: string
   updatedAt: string
   _count?: { eventLinks: number }
@@ -133,6 +134,7 @@ export interface PersonCreateInput {
   relationshipType?: string
   notes?: string
   isPrimary?: boolean
+  tags?: string[]
 }
 
 export interface ArtifactCreateInput {

@@ -208,15 +208,15 @@ ${persons?.slice(0, 10).map(p => `- ${p.name} (${p.relationshipType || 'relation
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">Focus on existing chapter</label>
-                <Select value={selectedChapterId} onValueChange={(v) => {
-                  setSelectedChapterId(v)
-                  if (v) setSelectedTimeRange('')
+                <Select value={selectedChapterId || "all"} onValueChange={(v) => {
+                  setSelectedChapterId(v === "all" ? "" : v)
+                  if (v !== "all") setSelectedTimeRange('')
                 }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a chapter..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All events</SelectItem>
+                    <SelectItem value="all">All events</SelectItem>
                     {chapters?.map((chapter) => (
                       <SelectItem key={chapter.id} value={chapter.id}>
                         {chapter.title}
