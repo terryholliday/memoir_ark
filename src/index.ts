@@ -65,6 +65,9 @@ app.use('/api/auth', authRoutes);
 app.use('/api/spotify', spotifyRoutes);
 app.use('/api/insights', insightsRoutes);
 
+// Favicon handler (no favicon, return 204)
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
