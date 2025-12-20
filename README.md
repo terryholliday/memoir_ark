@@ -1,8 +1,8 @@
-# MemoirArk
+# PROVENIQ Origins
 
 **Personal Memoir & Life Archive Engine**
 
-MemoirArk is a single-user, local-first application for storing, organizing, and linking a lifetime of journals, chat logs, artifacts, and memories. It provides a structured archive to support writing a memoir.
+PROVENIQ Origins is a single-user, local-first application for storing, organizing, and linking a lifetime of journals, chat logs, artifacts, and memories. It provides a structured archive to support writing a memoir.
 
 ## Tech Stack
 
@@ -78,7 +78,7 @@ MemoirArk is a single-user, local-first application for storing, organizing, and
 ## Project Structure
 
 ```
-memoirark/
+proveniq-origins/
 ├── README.md
 ├── project-rules.md
 ├── client/                 # React frontend
