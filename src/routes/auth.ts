@@ -68,6 +68,84 @@ async function verifyFirebaseToken(token: string) {
   }
 }
 
+// ============================================
+// AUTH MIDDLEWARE (exported for use in other routes)
+// ============================================
+
+export interface AuthenticatedRequest extends Request {
+  authUser?: {
+    uid: string;
+    email?: string;
+    provider: 'firebase' | 'legacy';
+    claims?: Record<string, unknown>;
+  };
+}
+
+export const requireAuth = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader?.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  const token = authHeader.slice(7);
+
+  // Preferred: Firebase ID token
+  const firebaseUser = await verifyFirebaseToken(token);
+  if (firebaseUser) {
+    req.authUser = {
+      uid: firebaseUser.uid,
+      email: firebaseUser.email,
+      provider: 'firebase',
+      claims: firebaseUser,
+    };
+    return next();
+  }
+
+  // Fallback: legacy HMAC token
+  const legacy = verifyLegacyToken(token);
+  if (legacy) {
+    req.authUser = {
+      uid: legacy.userId,
+      email: legacy.email,
+      provider: 'legacy',
+    };
+    return next();
+  }
+
+  return res.status(401).json({ error: 'Invalid or expired token' });
+};
+
+// Optional auth - doesn't fail if no token, just doesn't set user
+export const optionalAuth = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  const authHeader = req.headers.authorization;
+
+  if (authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.slice(7);
+    const firebaseUser = await verifyFirebaseToken(token);
+    if (firebaseUser) {
+      req.authUser = {
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
+        provider: 'firebase',
+        claims: firebaseUser,
+      };
+      return next();
+    }
+    const legacy = verifyLegacyToken(token);
+    if (legacy) {
+      req.authUser = {
+        uid: legacy.userId,
+        email: legacy.email,
+        provider: 'legacy',
+      };
+      return next();
+    }
+  }
+
+  next();
+};
+
 // Google OAuth2 client for authentication (separate from Drive)
 const getAuthOAuth2Client = () => {
   const clientId = process.env.GOOGLE_DRIVE_CLIENT_ID;
@@ -292,9 +370,9 @@ authRoutes.post('/login', async (req: Request, res: Response) => {
   try {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ 
-        error: 'Validation failed', 
-        details: parsed.error.errors 
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: parsed.error.errors
       });
     }
 
@@ -326,81 +404,3 @@ authRoutes.post('/login', async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to login' });
   }
 });
-
-// ============================================
-// AUTH MIDDLEWARE (exported for use in other routes)
-// ============================================
-
-export interface AuthenticatedRequest extends Request {
-  authUser?: {
-    uid: string;
-    email?: string;
-    provider: 'firebase' | 'legacy';
-    claims?: Record<string, unknown>;
-  };
-}
-
-export const requireAuth = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-  const authHeader = req.headers.authorization;
-  
-  if (!authHeader?.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Authentication required' });
-  }
-
-  const token = authHeader.slice(7);
-
-  // Preferred: Firebase ID token
-  const firebaseUser = await verifyFirebaseToken(token);
-  if (firebaseUser) {
-    req.authUser = {
-      uid: firebaseUser.uid,
-      email: firebaseUser.email,
-      provider: 'firebase',
-      claims: firebaseUser,
-    };
-    return next();
-  }
-
-  // Fallback: legacy HMAC token
-  const legacy = verifyLegacyToken(token);
-  if (legacy) {
-    req.authUser = {
-      uid: legacy.userId,
-      email: legacy.email,
-      provider: 'legacy',
-    };
-    return next();
-  }
-
-  return res.status(401).json({ error: 'Invalid or expired token' });
-};
-
-// Optional auth - doesn't fail if no token, just doesn't set user
-export const optionalAuth = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-  const authHeader = req.headers.authorization;
-  
-  if (authHeader?.startsWith('Bearer ')) {
-    const token = authHeader.slice(7);
-    const firebaseUser = await verifyFirebaseToken(token);
-    if (firebaseUser) {
-      req.authUser = {
-        uid: firebaseUser.uid,
-        email: firebaseUser.email,
-        provider: 'firebase',
-        claims: firebaseUser,
-      };
-      return next();
-    }
-    const legacy = verifyLegacyToken(token);
-    if (legacy) {
-      req.authUser = {
-        uid: legacy.userId,
-        email: legacy.email,
-        provider: 'legacy',
-      };
-      return next();
-    }
-  }
-  
-  next();
-};
