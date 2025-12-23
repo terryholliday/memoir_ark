@@ -1,6 +1,7 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
+import { AuthenticatedRequest } from './auth';
 
 export const personRoutes = Router();
 
@@ -16,11 +17,12 @@ const personCreateSchema = z.object({
 const personUpdateSchema = personCreateSchema.partial();
 
 // GET /api/persons - List all persons with optional search
-personRoutes.get('/', async (req: Request, res: Response) => {
+personRoutes.get('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const { search } = req.query;
 
-    const where: any = {};
+    const where: any = { userId };
 
     if (search && typeof search === 'string') {
       where.name = {
@@ -46,12 +48,13 @@ personRoutes.get('/', async (req: Request, res: Response) => {
 });
 
 // GET /api/persons/:id - Get single person with linked events
-personRoutes.get('/:id', async (req: Request, res: Response) => {
+personRoutes.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const { id } = req.params;
 
     const person = await prisma.person.findUnique({
-      where: { id },
+      where: { id, userId },
       include: {
         eventLinks: {
           include: {
@@ -83,8 +86,9 @@ personRoutes.get('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/persons - Create person
-personRoutes.post('/', async (req: Request, res: Response) => {
+personRoutes.post('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const validationResult = personCreateSchema.safeParse(req.body);
 
     if (!validationResult.success) {
@@ -98,6 +102,7 @@ personRoutes.post('/', async (req: Request, res: Response) => {
 
     const person = await prisma.person.create({
       data: {
+        userId,
         name: data.name,
         role: data.role,
         relationshipType: data.relationshipType,
@@ -115,11 +120,12 @@ personRoutes.post('/', async (req: Request, res: Response) => {
 });
 
 // PUT /api/persons/:id - Update person
-personRoutes.put('/:id', async (req: Request, res: Response) => {
+personRoutes.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const { id } = req.params;
 
-    const existingPerson = await prisma.person.findUnique({ where: { id } });
+    const existingPerson = await prisma.person.findUnique({ where: { id, userId } });
     if (!existingPerson) {
       return res.status(404).json({ error: 'Person not found' });
     }
@@ -154,11 +160,12 @@ personRoutes.put('/:id', async (req: Request, res: Response) => {
 });
 
 // DELETE /api/persons/:id - Delete person (hard delete)
-personRoutes.delete('/:id', async (req: Request, res: Response) => {
+personRoutes.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const { id } = req.params;
 
-    const existingPerson = await prisma.person.findUnique({ where: { id } });
+    const existingPerson = await prisma.person.findUnique({ where: { id, userId } });
     if (!existingPerson) {
       return res.status(404).json({ error: 'Person not found' });
     }

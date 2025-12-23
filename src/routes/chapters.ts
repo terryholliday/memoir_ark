@@ -1,12 +1,15 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { prisma } from '../lib/prisma';
+import { AuthenticatedRequest } from './auth';
 
 export const chapterRoutes = Router();
 
 // GET /api/chapters - List all chapters
-chapterRoutes.get('/', async (req: Request, res: Response) => {
+chapterRoutes.get('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const chapters = await prisma.chapter.findMany({
+      where: { userId },
       orderBy: { number: 'asc' },
     });
 
@@ -23,12 +26,13 @@ chapterRoutes.get('/', async (req: Request, res: Response) => {
 });
 
 // GET /api/chapters/:id - Get single chapter
-chapterRoutes.get('/:id', async (req: Request, res: Response) => {
+chapterRoutes.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const { id } = req.params;
 
     const chapter = await prisma.chapter.findUnique({
-      where: { id },
+      where: { id, userId },
       include: {
         events: true,
       },
@@ -49,8 +53,9 @@ chapterRoutes.get('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/chapters - Create chapter
-chapterRoutes.post('/', async (req: Request, res: Response) => {
+chapterRoutes.post('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const { number, title, yearsCovered, summary } = req.body;
 
     if (!number || !title) {
@@ -59,6 +64,7 @@ chapterRoutes.post('/', async (req: Request, res: Response) => {
 
     const chapter = await prisma.chapter.create({
       data: {
+        userId,
         number,
         title,
         yearsCovered: JSON.stringify(yearsCovered || []),
@@ -77,10 +83,15 @@ chapterRoutes.post('/', async (req: Request, res: Response) => {
 });
 
 // PUT /api/chapters/:id - Update chapter
-chapterRoutes.put('/:id', async (req: Request, res: Response) => {
+chapterRoutes.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const { id } = req.params;
     const { number, title, yearsCovered, summary } = req.body;
+
+    // Verify ownership
+    const existing = await prisma.chapter.findUnique({ where: { id, userId } });
+    if (!existing) return res.status(404).json({ error: 'Chapter not found' });
 
     const updateData: any = {};
     if (number !== undefined) updateData.number = number;
@@ -104,9 +115,14 @@ chapterRoutes.put('/:id', async (req: Request, res: Response) => {
 });
 
 // DELETE /api/chapters/:id - Delete chapter
-chapterRoutes.delete('/:id', async (req: Request, res: Response) => {
+chapterRoutes.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const { id } = req.params;
+
+    // Verify ownership
+    const existing = await prisma.chapter.findUnique({ where: { id, userId } });
+    if (!existing) return res.status(404).json({ error: 'Chapter not found' });
 
     await prisma.chapter.delete({
       where: { id },

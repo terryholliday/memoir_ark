@@ -1,6 +1,7 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
+import { AuthenticatedRequest } from './auth';
 
 export const tagRoutes = Router();
 
@@ -10,9 +11,11 @@ const tagSchema = z.object({
 });
 
 // GET /api/tags - List all tags
-tagRoutes.get('/', async (req: Request, res: Response) => {
+tagRoutes.get('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const tags = await prisma.tag.findMany({
+      where: { userId },
       include: {
         _count: {
           select: { eventLinks: true },
@@ -28,11 +31,12 @@ tagRoutes.get('/', async (req: Request, res: Response) => {
 });
 
 // GET /api/tags/:id - Get single tag with linked events
-tagRoutes.get('/:id', async (req: Request, res: Response) => {
+tagRoutes.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const { id } = req.params;
     const tag = await prisma.tag.findUnique({
-      where: { id },
+      where: { id, userId },
       include: {
         eventLinks: {
           include: {
@@ -65,8 +69,9 @@ tagRoutes.get('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/tags - Create new tag
-tagRoutes.post('/', async (req: Request, res: Response) => {
+tagRoutes.post('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const parsed = tagSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: parsed.error.errors });
@@ -74,6 +79,7 @@ tagRoutes.post('/', async (req: Request, res: Response) => {
 
     const tag = await prisma.tag.create({
       data: {
+        userId,
         name: parsed.data.name,
         description: parsed.data.description || '',
       },
@@ -90,9 +96,15 @@ tagRoutes.post('/', async (req: Request, res: Response) => {
 });
 
 // PUT /api/tags/:id - Update tag
-tagRoutes.put('/:id', async (req: Request, res: Response) => {
+tagRoutes.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const { id } = req.params;
+
+    // Verify ownership
+    const existing = await prisma.tag.findUnique({ where: { id, userId } });
+    if (!existing) return res.status(404).json({ error: 'Tag not found' });
+
     const parsed = tagSchema.partial().safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: parsed.error.errors });
@@ -117,9 +129,14 @@ tagRoutes.put('/:id', async (req: Request, res: Response) => {
 });
 
 // DELETE /api/tags/:id - Delete tag
-tagRoutes.delete('/:id', async (req: Request, res: Response) => {
+tagRoutes.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const { id } = req.params;
+
+    const existing = await prisma.tag.findUnique({ where: { id, userId } });
+    if (!existing) return res.status(404).json({ error: 'Tag not found' });
+
     await prisma.tag.delete({ where: { id } });
     res.status(204).send();
   } catch (error: any) {
@@ -132,10 +149,21 @@ tagRoutes.delete('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/tags/:tagId/events/:eventId - Link tag to event
-tagRoutes.post('/:tagId/events/:eventId', async (req: Request, res: Response) => {
+tagRoutes.post('/:tagId/events/:eventId', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const { tagId, eventId } = req.params;
-    
+
+    // Verify both items belong to user
+    const [tag, event] = await Promise.all([
+      prisma.tag.findUnique({ where: { id: tagId, userId } }),
+      prisma.event.findUnique({ where: { id: eventId, userId } }),
+    ]);
+
+    if (!tag || !event) {
+      return res.status(404).json({ error: 'Tag or event not found' });
+    }
+
     const link = await prisma.eventTag.create({
       data: { tagId, eventId },
       include: { tag: true, event: true },
@@ -155,10 +183,22 @@ tagRoutes.post('/:tagId/events/:eventId', async (req: Request, res: Response) =>
 });
 
 // DELETE /api/tags/:tagId/events/:eventId - Unlink tag from event
-tagRoutes.delete('/:tagId/events/:eventId', async (req: Request, res: Response) => {
+tagRoutes.delete('/:tagId/events/:eventId', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const { tagId, eventId } = req.params;
-    
+
+    // Check ownership of at least one (or relying on join table existence implies relationship, but strictly we should check ownership of tag/event to prevent unlinking others' stuff if IDs guessed)
+    // Safest: Check ownership of tag and event.
+    const [tag, event] = await Promise.all([
+      prisma.tag.findUnique({ where: { id: tagId, userId } }),
+      prisma.event.findUnique({ where: { id: eventId, userId } }),
+    ]);
+
+    if (!tag || !event) {
+      return res.status(404).json({ error: 'Tag or event not found' });
+    }
+
     await prisma.eventTag.delete({
       where: {
         eventId_tagId: { eventId, tagId },
