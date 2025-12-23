@@ -17,7 +17,7 @@ const firebaseHasCredentials = Boolean(
 
 let firebaseAuth: admin.auth.Auth | null = null;
 
-if (!admin.apps.length && FIREBASE_PROJECT_ID && firebaseHasCredentials) {
+if (!admin.apps.length && FIREBASE_PROJECT_ID) {
   try {
     const credential = process.env.FIREBASE_SERVICE_ACCOUNT
       ? admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT) as admin.ServiceAccount)
@@ -28,13 +28,14 @@ if (!admin.apps.length && FIREBASE_PROJECT_ID && firebaseHasCredentials) {
       projectId: FIREBASE_PROJECT_ID,
     });
     firebaseAuth = admin.auth();
+    if (!firebaseHasCredentials) {
+      console.info('Firebase initialized using Application Default Credentials.');
+    }
   } catch (err) {
     console.error('Firebase initialization failed; skipping Firebase auth and falling back to legacy token auth.', err);
   }
 } else if (admin.apps.length) {
   firebaseAuth = admin.auth();
-} else if (FIREBASE_PROJECT_ID) {
-  console.warn('Firebase project ID provided but credentials are missing; Firebase auth disabled.');
 }
 
 // Legacy JWT-like token using HMAC (fallback only)
