@@ -19,46 +19,33 @@ interface AuthContextType {
   loginWithEmail: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signup: (email: string, password: string, name?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
-  setTokenFromCallback: (token: string) => void;
+  handleCallback: (success: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
-
-const TOKEN_KEY = 'origins-auth-token';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check for existing token on mount
+  // Check for existing session on mount
   useEffect(() => {
-    const token = localStorage.getItem(TOKEN_KEY);
-    if (token) {
-      fetchUser(token);
-    } else {
-      setIsLoading(false);
-    }
+    fetchUser();
   }, []);
 
-  const fetchUser = async (token: string) => {
+  const fetchUser = async () => {
     try {
-      const res = await fetch(`${API_BASE}/auth/me`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      // Credentials included automatically by browser (cookies)
+      const res = await fetch(`${API_BASE}/auth/me`);
 
       if (res.ok) {
         const data = await res.json();
         setUser(data.user);
       } else {
-        // Token invalid, remove it
-        localStorage.removeItem(TOKEN_KEY);
         setUser(null);
       }
     } catch (error) {
       console.error('Failed to fetch user:', error);
-      localStorage.removeItem(TOKEN_KEY);
       setUser(null);
     } finally {
       setIsLoading(false);
@@ -81,19 +68,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      const token = localStorage.getItem(TOKEN_KEY);
-      if (token) {
+      if (user) {
         await fetch(`${API_BASE}/auth/logout`, {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
         });
       }
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      localStorage.removeItem(TOKEN_KEY);
+      // Optimistically clear user
       setUser(null);
     }
   };
@@ -112,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, error: data.error || 'Login failed' };
       }
 
-      localStorage.setItem(TOKEN_KEY, data.token);
+      // Token handled by cookie
       setUser(data.user);
       return { success: true };
     } catch (error) {
@@ -135,7 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, error: data.error || 'Signup failed' };
       }
 
-      localStorage.setItem(TOKEN_KEY, data.token);
+      // Token handled by cookie
       setUser(data.user);
       return { success: true };
     } catch (error) {
@@ -144,9 +127,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const setTokenFromCallback = (token: string) => {
-    localStorage.setItem(TOKEN_KEY, token);
-    fetchUser(token);
+  const handleCallback = (success: boolean) => {
+    if (success) {
+      fetchUser();
+    }
   };
 
   return (
@@ -158,7 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loginWithEmail,
       signup,
       logout,
-      setTokenFromCallback,
+      handleCallback,
     }}>
       {children}
     </AuthContext.Provider>
@@ -174,10 +158,7 @@ export function useAuth() {
 }
 
 // Helper to get auth header for API calls
+// NOW RETURNS EMPTY OBJECT - COOKIES HANDLE AUTH
 export function getAuthHeader(): Record<string, string> {
-  const token = localStorage.getItem(TOKEN_KEY);
-  if (token) {
-    return { 'Authorization': `Bearer ${token}` };
-  }
   return {};
 }

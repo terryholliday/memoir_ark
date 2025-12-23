@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { google } from 'googleapis';
 import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import admin from 'firebase-admin';
 
@@ -18,41 +19,29 @@ if (!admin.apps.length && FIREBASE_PROJECT_ID) {
 }
 const firebaseAuth = admin.apps.length ? admin.auth() : null;
 
-// Legacy JWT-like token using HMAC (fallback only)
+// JWT Config
 const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.warn('WARNING: JWT_SECRET is not set. Authentication will fail.');
+}
 
 interface TokenPayload {
   userId: string;
   email: string;
-  exp: number;
 }
 
-// Token utilities
-function createToken(payload: Omit<TokenPayload, 'exp'>): string {
+// Token utilities using jsonwebtoken
+function createToken(payload: TokenPayload): string {
   if (!JWT_SECRET) {
-    throw new Error('JWT_SECRET not set; legacy token generation disabled.');
+    throw new Error('JWT_SECRET not set');
   }
-  const exp = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
-  const data = JSON.stringify({ ...payload, exp });
-  const signature = crypto.createHmac('sha256', JWT_SECRET).update(data).digest('base64url');
-  return Buffer.from(data).toString('base64url') + '.' + signature;
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
 }
 
-function verifyLegacyToken(token: string): TokenPayload | null {
+function verifyToken(token: string): TokenPayload | null {
   if (!JWT_SECRET) return null;
   try {
-    const [dataB64, signature] = token.split('.');
-    if (!dataB64 || !signature) return null;
-    
-    const data = Buffer.from(dataB64, 'base64url').toString();
-    const expectedSig = crypto.createHmac('sha256', JWT_SECRET).update(data).digest('base64url');
-    
-    if (signature !== expectedSig) return null;
-    
-    const payload = JSON.parse(data) as TokenPayload;
-    if (payload.exp < Date.now()) return null;
-    
-    return payload;
+    return jwt.verify(token, JWT_SECRET) as TokenPayload;
   } catch {
     return null;
   }
@@ -68,7 +57,16 @@ async function verifyFirebaseToken(token: string) {
   }
 }
 
-// Google OAuth2 client for authentication (separate from Drive)
+// Cookie options
+const COOKIE_NAME = 'origins_token';
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production', // true in prod
+  sameSite: 'lax' as const,
+  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+};
+
+// Google OAuth2 client for authentication
 const getAuthOAuth2Client = () => {
   const clientId = process.env.GOOGLE_DRIVE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_DRIVE_CLIENT_SECRET;
@@ -84,25 +82,19 @@ const getAuthOAuth2Client = () => {
 // GET /api/auth/google - Start Google OAuth flow for login
 authRoutes.get('/google', (req: Request, res: Response) => {
   const oauth2Client = getAuthOAuth2Client();
-  
+
   if (!oauth2Client) {
-    return res.status(500).json({ 
+    return res.status(500).json({
       error: 'Google OAuth not configured',
       setup: 'Add GOOGLE_DRIVE_CLIENT_ID and GOOGLE_DRIVE_CLIENT_SECRET to .env'
     });
   }
 
-  // Minimal scopes for authentication only
-  const scopes = [
-    'openid',
-    'email',
-    'profile',
-  ];
-
+  const scopes = ['openid', 'email', 'profile'];
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: scopes,
-    prompt: 'select_account', // Allow user to choose account
+    prompt: 'select_account',
   });
 
   res.json({ authUrl });
@@ -125,7 +117,6 @@ authRoutes.get('/google/callback', async (req: Request, res: Response) => {
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
 
-    // Get user info from Google
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
     const { data: userInfo } = await oauth2.userinfo.get();
 
@@ -133,7 +124,6 @@ authRoutes.get('/google/callback', async (req: Request, res: Response) => {
       return res.redirect('http://localhost:5173/login?error=no_email');
     }
 
-    // Find or create user
     let user = await prisma.user.findUnique({
       where: { googleId: userInfo.id }
     });
@@ -148,7 +138,6 @@ authRoutes.get('/google/callback', async (req: Request, res: Response) => {
         }
       });
     } else {
-      // Update user info on each login
       user = await prisma.user.update({
         where: { id: user.id },
         data: {
@@ -159,11 +148,13 @@ authRoutes.get('/google/callback', async (req: Request, res: Response) => {
       });
     }
 
-    // Create session token
     const token = createToken({ userId: user.id, email: user.email });
 
-    // Redirect with token (frontend will store it)
-    res.redirect(`http://localhost:5173/login/callback?token=${token}`);
+    // Set HttpOnly cookie
+    res.cookie(COOKIE_NAME, token, COOKIE_OPTIONS);
+
+    // Redirect to frontend (token is in cookie now)
+    res.redirect('http://localhost:5173/login/callback?success=true');
   } catch (error) {
     console.error('Google OAuth error:', error);
     res.redirect('http://localhost:5173/login?error=oauth_failed');
@@ -177,7 +168,6 @@ authRoutes.get('/me', requireAuth, async (req: AuthenticatedRequest, res: Respon
     return res.status(401).json({ error: 'Authentication required' });
   }
 
-  // If authenticated via Firebase, return decoded claims/email
   if (authUser.provider === 'firebase') {
     return res.json({
       user: {
@@ -189,7 +179,6 @@ authRoutes.get('/me', requireAuth, async (req: AuthenticatedRequest, res: Respon
     });
   }
 
-  // Legacy fallback: look up user in DB
   try {
     const user = await prisma.user.findUnique({
       where: { id: authUser.uid },
@@ -207,10 +196,9 @@ authRoutes.get('/me', requireAuth, async (req: AuthenticatedRequest, res: Respon
   }
 });
 
-// POST /api/auth/logout - Logout (client-side token removal, but we can track it)
+// POST /api/auth/logout
 authRoutes.post('/logout', (req: Request, res: Response) => {
-  // For a simple implementation, logout is handled client-side by removing the token
-  // In production, you might want to maintain a token blacklist
+  res.clearCookie(COOKIE_NAME);
   res.json({ success: true });
 });
 
@@ -229,7 +217,6 @@ const loginSchema = z.object({
   password: z.string().min(1, 'Password is required'),
 });
 
-// Hash password using PBKDF2
 function hashPassword(password: string): string {
   const salt = crypto.randomBytes(16).toString('hex');
   const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
@@ -242,20 +229,19 @@ function verifyPassword(password: string, stored: string): boolean {
   return hash === verifyHash;
 }
 
-// POST /api/auth/signup - Email/password signup
+// POST /api/auth/signup
 authRoutes.post('/signup', async (req: Request, res: Response) => {
   try {
     const parsed = signupSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ 
-        error: 'Validation failed', 
-        details: parsed.error.errors 
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: parsed.error.errors
       });
     }
 
     const { email, password, name } = parsed.data;
 
-    // Check if user already exists
     const existingUser = await prisma.user.findUnique({
       where: { email }
     });
@@ -264,7 +250,6 @@ authRoutes.post('/signup', async (req: Request, res: Response) => {
       return res.status(409).json({ error: 'Email already registered' });
     }
 
-    // Create user with hashed password
     const passwordHash = hashPassword(password);
     const user = await prisma.user.create({
       data: {
@@ -274,12 +259,11 @@ authRoutes.post('/signup', async (req: Request, res: Response) => {
       }
     });
 
-    // Create session token
     const token = createToken({ userId: user.id, email: user.email });
+    res.cookie(COOKIE_NAME, token, COOKIE_OPTIONS);
 
     res.status(201).json({
       user: { id: user.id, email: user.email, name: user.name },
-      token,
     });
   } catch (error) {
     console.error('Signup error:', error);
@@ -287,20 +271,19 @@ authRoutes.post('/signup', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/auth/login - Email/password login
+// POST /api/auth/login
 authRoutes.post('/login', async (req: Request, res: Response) => {
   try {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ 
-        error: 'Validation failed', 
-        details: parsed.error.errors 
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: parsed.error.errors
       });
     }
 
     const { email, password } = parsed.data;
 
-    // Find user by email
     const user = await prisma.user.findUnique({
       where: { email }
     });
@@ -309,17 +292,15 @@ authRoutes.post('/login', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    // Verify password
     if (!verifyPassword(password, user.passwordHash)) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    // Create session token
     const token = createToken({ userId: user.id, email: user.email });
+    res.cookie(COOKIE_NAME, token, COOKIE_OPTIONS);
 
     res.json({
       user: { id: user.id, email: user.email, name: user.name, picture: user.picture },
-      token,
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -328,57 +309,73 @@ authRoutes.post('/login', async (req: Request, res: Response) => {
 });
 
 // ============================================
-// AUTH MIDDLEWARE (exported for use in other routes)
+// AUTH MIDDLEWARE
 // ============================================
 
 export interface AuthenticatedRequest extends Request {
   authUser?: {
     uid: string;
     email?: string;
-    provider: 'firebase' | 'legacy';
+    provider: 'firebase' | 'local';
     claims?: Record<string, unknown>;
   };
 }
 
 export const requireAuth = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  // 1. Check for cookie (Primary)
+  const cookieToken = req.cookies?.[COOKIE_NAME];
+  if (cookieToken) {
+    const payload = verifyToken(cookieToken);
+    if (payload) {
+      req.authUser = {
+        uid: payload.userId,
+        email: payload.email,
+        provider: 'local',
+      };
+      return next();
+    }
+  }
+
+  // 2. Check for Bearer header (Firebase or fallback)
   const authHeader = req.headers.authorization;
-  
-  if (!authHeader?.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Authentication required' });
+  if (authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.slice(7);
+
+    // Try Firebase
+    const firebaseUser = await verifyFirebaseToken(token);
+    if (firebaseUser) {
+      req.authUser = {
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
+        provider: 'firebase',
+        claims: firebaseUser,
+      };
+      return next();
+    }
+
+    // IMPORTANT: Removed legacy HMAC token verification from header.
+    // If you need legacy support for API tokens, implement a dedicated API key system.
   }
 
-  const token = authHeader.slice(7);
-
-  // Preferred: Firebase ID token
-  const firebaseUser = await verifyFirebaseToken(token);
-  if (firebaseUser) {
-    req.authUser = {
-      uid: firebaseUser.uid,
-      email: firebaseUser.email,
-      provider: 'firebase',
-      claims: firebaseUser,
-    };
-    return next();
-  }
-
-  // Fallback: legacy HMAC token
-  const legacy = verifyLegacyToken(token);
-  if (legacy) {
-    req.authUser = {
-      uid: legacy.userId,
-      email: legacy.email,
-      provider: 'legacy',
-    };
-    return next();
-  }
-
-  return res.status(401).json({ error: 'Invalid or expired token' });
+  return res.status(401).json({ error: 'Authentication required' });
 };
 
-// Optional auth - doesn't fail if no token, just doesn't set user
+// Optional auth
 export const optionalAuth = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  const cookieToken = req.cookies?.[COOKIE_NAME];
+  if (cookieToken) {
+    const payload = verifyToken(cookieToken);
+    if (payload) {
+      req.authUser = {
+        uid: payload.userId,
+        email: payload.email,
+        provider: 'local',
+      };
+      return next();
+    }
+  }
+
   const authHeader = req.headers.authorization;
-  
   if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.slice(7);
     const firebaseUser = await verifyFirebaseToken(token);
@@ -391,16 +388,7 @@ export const optionalAuth = async (req: AuthenticatedRequest, res: Response, nex
       };
       return next();
     }
-    const legacy = verifyLegacyToken(token);
-    if (legacy) {
-      req.authUser = {
-        uid: legacy.userId,
-        email: legacy.email,
-        provider: 'legacy',
-      };
-      return next();
-    }
   }
-  
+
   next();
 };
