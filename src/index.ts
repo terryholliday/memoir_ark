@@ -48,11 +48,21 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser());
 
+// Middleware
+import { authLimiter, apiLimiter } from './middleware/rateLimit';
+
+// ... (previous middleware)
+
 // Routes
-app.use('/api/auth', authRoutes);
+// Apply auth rate limiting
+app.use('/api/auth', authLimiter, authRoutes);
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// Apply global API rate limiting to all other routes
+app.use('/api', apiLimiter);
 
 // Require auth for all remaining API routes
 app.use('/api', requireAuth);

@@ -3,10 +3,16 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import AdmZip from 'adm-zip';
+import sanitize from 'sanitize-filename';
 import { prisma } from '../lib/prisma';
 import { extractContent } from '../services/contentExtractor';
 
+import { uploadLimiter } from '../middleware/rateLimit';
+
 export const uploadRoutes = Router();
+
+// Apply rate limiting to all upload routes
+uploadRoutes.use(uploadLimiter);
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, '../../uploads');
@@ -195,12 +201,23 @@ uploadRoutes.post('/audio', upload.single('audio'), async (req: Request, res: Re
     // Extract/transcribe content synchronously and return for user review
     const filePath = path.join(uploadsDir, req.file.filename);
     let extractedText = '';
-    try {
-      const result = await extractContent(filePath, req.file.mimetype);
-      extractedText = result.text || '';
-      console.log(`Audio transcription complete: ${extractedText.length} chars`);
-    } catch (err) {
-      console.error('Audio transcription error:', err);
+
+    // Check AI Consent
+    const user = await prisma.user.findUnique({
+      where: { id: (req as any).authUser.uid },
+      select: { aiConsent: true }
+    });
+
+    if (user?.aiConsent) {
+      try {
+        const result = await extractContent(filePath, req.file.mimetype);
+        extractedText = result.text || '';
+        console.log(`Audio transcription complete: ${extractedText.length} chars`);
+      } catch (err) {
+        console.error('Audio transcription error:', err);
+      }
+    } else {
+      console.log('Skipping audio transcription (No AI Consent)');
     }
 
     res.status(201).json({
@@ -258,10 +275,22 @@ uploadRoutes.post('/audio/batch', upload.array('audio', 50), async (req: Request
   }
 });
 
+import sanitize from 'sanitize-filename';
+// ... imports
+
+// ...
+
 // GET /api/uploads/:filename - Serve uploaded file
 uploadRoutes.get('/:filename', (req: Request, res: Response) => {
   const { filename } = req.params;
-  const filePath = path.join(uploadsDir, filename);
+  const safeFilename = sanitize(filename);
+
+  // Prevent path traversal double check (sanitize should handle it, but good to be explicit)
+  if (safeFilename !== filename || filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+    return res.status(400).json({ error: 'Invalid filename' });
+  }
+
+  const filePath = path.join(uploadsDir, safeFilename);
 
   if (!fs.existsSync(filePath)) {
     return res.status(404).json({ error: 'File not found' });
@@ -274,7 +303,13 @@ uploadRoutes.get('/:filename', (req: Request, res: Response) => {
 uploadRoutes.delete('/:filename', async (req: Request, res: Response) => {
   try {
     const { filename } = req.params;
-    const filePath = path.join(uploadsDir, filename);
+    const safeFilename = sanitize(filename);
+
+    if (safeFilename !== filename) {
+      return res.status(400).json({ error: 'Invalid filename' });
+    }
+
+    const filePath = path.join(uploadsDir, safeFilename);
 
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
@@ -282,8 +317,7 @@ uploadRoutes.delete('/:filename', async (req: Request, res: Response) => {
 
     res.status(204).send();
   } catch (error) {
-    console.error('Error deleting file:', error);
-    res.status(500).json({ error: 'Failed to delete file' });
+    // ...
   }
 });
 
@@ -312,14 +346,25 @@ uploadRoutes.post('/image', uploadImage.single('image'), async (req: Request, re
     let extractedText = '';
     let memoryPrompts: string[] = [];
     let estimatedDate: string | undefined;
-    try {
-      const result = await extractContent(filePath, req.file.mimetype);
-      extractedText = result.analysis || result.text || '';
-      memoryPrompts = result.memoryPrompts || [];
-      estimatedDate = result.estimatedDate;
-      console.log(`Image analysis complete: ${extractedText.length} chars, ${memoryPrompts.length} prompts`);
-    } catch (err) {
-      console.error('Image analysis error:', err);
+
+    // Check AI Consent
+    const user = await prisma.user.findUnique({
+      where: { id: (req as any).authUser.uid },
+      select: { aiConsent: true }
+    });
+
+    if (user?.aiConsent) {
+      try {
+        const result = await extractContent(filePath, req.file.mimetype);
+        extractedText = result.analysis || result.text || '';
+        memoryPrompts = result.memoryPrompts || [];
+        estimatedDate = result.estimatedDate;
+        console.log(`Image analysis complete: ${extractedText.length} chars, ${memoryPrompts.length} prompts`);
+      } catch (err) {
+        console.error('Image analysis error:', err);
+      }
+    } else {
+      console.log('Skipping image analysis (No AI Consent)');
     }
 
     res.status(201).json({
@@ -376,12 +421,23 @@ uploadRoutes.post('/document', uploadDocument.single('document'), async (req: Re
     // Extract content synchronously and return for user review
     const filePath = path.join(docsDir, req.file.filename);
     let extractedText = '';
-    try {
-      const result = await extractContent(filePath, req.file.mimetype);
-      extractedText = result.text || '';
-      console.log(`Document extraction complete: ${extractedText.length} chars`);
-    } catch (err) {
-      console.error('Document extraction error:', err);
+
+    // Check AI Consent
+    const user = await prisma.user.findUnique({
+      where: { id: (req as any).authUser.uid },
+      select: { aiConsent: true }
+    });
+
+    if (user?.aiConsent) {
+      try {
+        const result = await extractContent(filePath, req.file.mimetype);
+        extractedText = result.text || '';
+        console.log(`Document extraction complete: ${extractedText.length} chars`);
+      } catch (err) {
+        console.error('Document extraction error:', err);
+      }
+    } else {
+      console.log('Skipping document extraction (No AI Consent)');
     }
 
     // If we extracted text, trigger AI analysis
@@ -431,7 +487,7 @@ uploadRoutes.post('/document', uploadDocument.single('document'), async (req: Re
               // Update artifact with summary
               await prisma.artifact.update({
                 where: { id: artifact.id },
-                data: { 
+                data: {
                   transcribedText: extractedText,
                   shortDescription: aiAnalysis.summary || shortDescription || req.file.originalname,
                 },
@@ -455,10 +511,10 @@ uploadRoutes.post('/document', uploadDocument.single('document'), async (req: Re
       },
       extractedText,
       aiAnalysis,
-      message: aiAnalysis 
-        ? 'Document uploaded and analyzed by Ori.' 
-        : extractedText 
-          ? 'Document uploaded and text extracted.' 
+      message: aiAnalysis
+        ? 'Document uploaded and analyzed by Ori.'
+        : extractedText
+          ? 'Document uploaded and text extracted.'
           : 'Document uploaded. Could not extract text automatically.',
     });
   } catch (error) {
@@ -587,7 +643,7 @@ function getArtifactTypeFromFile(filename: string): string {
   const audioExts = ['.mp3', '.wav', '.m4a', '.ogg', '.flac', '.wma', '.aac', '.amr'];
   const videoExts = ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.wmv', '.flv'];
   const docExts = ['.pdf', '.doc', '.docx', '.txt', '.md', '.rtf'];
-  
+
   if (imageExts.includes(ext)) return 'photo';
   if (audioExts.includes(ext)) return 'audio';
   if (videoExts.includes(ext)) return 'video';
@@ -647,7 +703,7 @@ uploadRoutes.post('/bulk', uploadBulk.array('files', 100), async (req: Request, 
 
             const entryName = path.basename(entry.entryName);
             const artifactType = getArtifactTypeFromFile(entryName);
-            
+
             // Skip unsupported file types
             if (artifactType === 'other') continue;
 
@@ -655,7 +711,7 @@ uploadRoutes.post('/bulk', uploadBulk.array('files', 100), async (req: Request, 
             const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
             const ext = path.extname(entryName);
             const newFilename = `extracted-${uniqueSuffix}${ext}`;
-            
+
             // Determine destination based on type
             let destDir = processedDir;
             let urlPath = `/uploads/processed/${newFilename}`;
@@ -689,7 +745,7 @@ uploadRoutes.post('/bulk', uploadBulk.array('files', 100), async (req: Request, 
 
               // Queue content extraction (async, don't wait)
               const mimeType = getMimeTypeFromExt(entryName);
-              extractContent(destPath, mimeType, artifact.id).catch(err => 
+              extractContent(destPath, mimeType, artifact.id).catch(err =>
                 console.error(`Extraction error for ${entryName}:`, err)
               );
 
@@ -714,7 +770,7 @@ uploadRoutes.post('/bulk', uploadBulk.array('files', 100), async (req: Request, 
       } else {
         // Regular file - move to appropriate directory and create artifact
         const artifactType = getArtifactTypeFromFile(file.originalname);
-        
+
         if (artifactType === 'other') {
           results.failed.push({ filename: file.originalname, error: 'Unsupported file type' });
           fs.unlinkSync(filePath);

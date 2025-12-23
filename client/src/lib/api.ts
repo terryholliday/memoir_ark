@@ -600,7 +600,7 @@ export const uploadsApi = {
     formData.append('audio', file)
     if (shortDescription) formData.append('shortDescription', shortDescription)
     if (sourceSystem) formData.append('sourceSystem', sourceSystem)
-    
+
     const { data } = await api.post('/uploads/audio', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
@@ -610,7 +610,7 @@ export const uploadsApi = {
     const formData = new FormData()
     files.forEach((file) => formData.append('audio', file))
     if (sourceSystem) formData.append('sourceSystem', sourceSystem)
-    
+
     const { data } = await api.post('/uploads/audio/batch', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
@@ -622,7 +622,7 @@ export const uploadsApi = {
   uploadImage: async (file: File): Promise<UploadResult> => {
     const formData = new FormData()
     formData.append('image', file)
-    
+
     const { data } = await api.post('/uploads/image', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
@@ -632,7 +632,7 @@ export const uploadsApi = {
     const formData = new FormData()
     formData.append('document', file)
     if (shortDescription) formData.append('shortDescription', shortDescription)
-    
+
     const { data } = await api.post('/uploads/document', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
@@ -762,7 +762,7 @@ export const smsImportApi = {
   },
   import: async (
     file: File,
-    options: { 
+    options: {
       createPeople?: boolean
       createArtifact?: boolean
       groupByDay?: boolean
@@ -774,9 +774,9 @@ export const smsImportApi = {
     formData.append('createPeople', String(options.createPeople ?? true))
     formData.append('createArtifact', String(options.createArtifact ?? true))
     formData.append('groupByDay', String(options.groupByDay ?? true))
-    formData.append('selectedConversations', 
-      options.selectedConversations === 'all' 
-        ? 'all' 
+    formData.append('selectedConversations',
+      options.selectedConversations === 'all'
+        ? 'all'
         : JSON.stringify(options.selectedConversations ?? [])
     )
     const { data } = await api.post('/sms-import/import', formData, {
@@ -827,6 +827,14 @@ export const linksApi = {
   unlinkPersonFromArtifact: async (artifactId: string, personId: string) => {
     await api.delete(`/artifacts/${artifactId}/persons/${personId}`)
   },
+}
+
+
+export const authApi = {
+  updateUser: async (data: { aiConsent?: boolean }): Promise<any> => {
+    const response = await api.put('/auth/me', data);
+    return response.data;
+  }
 }
 
 export default api

@@ -1,8 +1,8 @@
 import { ReactNode, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { 
-  Moon, Sun, Home, Calendar, BookOpen, Users, FileText, Sparkles, 
-  Clock, Search, Download, Tag, FolderOpen, Upload, Music, 
+import {
+  Moon, Sun, Home, Calendar, BookOpen, Users, FileText, Sparkles,
+  Clock, Search, Download, Tag, FolderOpen, Upload, Music,
   HelpCircle, Feather, LogOut, MessageCircle, Menu, X, ChevronDown,
   TreePine, Mic, Package, FileArchive, Lightbulb
 } from 'lucide-react'
@@ -81,8 +81,8 @@ export default function Layout({ children, theme, toggleTheme }: LayoutProps) {
           const isActive = location.pathname === item.path
           return (
             <DropdownMenuItem key={item.path} asChild>
-              <Link 
-                to={item.path} 
+              <Link
+                to={item.path}
                 className={cn(
                   "flex items-start gap-3 p-2 cursor-pointer",
                   isActive && "bg-primary/5"
@@ -127,7 +127,7 @@ export default function Layout({ children, theme, toggleTheme }: LayoutProps) {
                   data-tour={item.tourId}
                   className={cn(
                     'flex items-center gap-1.5 px-3 h-9 rounded-lg text-sm font-medium transition-colors',
-                    item.featured 
+                    item.featured
                       ? 'bg-gradient-to-r from-amber-500/10 to-orange-500/10 text-amber-700 dark:text-amber-400 hover:from-amber-500/20 hover:to-orange-500/20'
                       : isActive
                         ? 'bg-primary/10 text-primary'
@@ -182,6 +182,14 @@ export default function Layout({ children, theme, toggleTheme }: LayoutProps) {
                     <div className="text-sm font-medium">{user.name}</div>
                     <div className="text-xs text-muted-foreground truncate">{user.email}</div>
                   </DropdownMenuLabel>
+                  <DropdownMenuItem asChild>
+                    <Link to="/settings" className="cursor-pointer">
+                      <div className="flex items-center">
+                        <Users className="h-4 w-4 mr-2" />
+                        Settings
+                      </div>
+                    </Link>
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={logout} className="text-red-600 cursor-pointer">
                     <LogOut className="h-4 w-4 mr-2" />

@@ -48,6 +48,7 @@ import CloudImport from './pages/CloudImport'
 import BulkUpload from './pages/BulkUpload'
 import OriInterviewer from './components/OriInterviewer'
 import Insights from './pages/Insights'
+import Settings from './pages/Settings'
 
 function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -94,14 +95,14 @@ function App() {
         <Route path="/welcome" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/login/callback" element={<LoginCallback />} />
-        
+
         {/* Ori Interview - Full screen, outside main layout */}
         <Route path="/interview" element={
           <ProtectedRoute>
             <OriInterviewer />
           </ProtectedRoute>
         } />
-        
+
         {/* Protected routes */}
         <Route path="/*" element={
           <ProtectedRoute>
@@ -155,6 +156,7 @@ function App() {
                 <Route path="/bulk-upload" element={<BulkUpload />} />
                 <Route path="/interview" element={<OriInterviewer />} />
                 <Route path="/insights" element={<Insights />} />
+                <Route path="/settings" element={<Settings />} />
               </Routes>
             </Layout>
           </ProtectedRoute>

@@ -1,5 +1,8 @@
 import { Router, Request, Response } from 'express';
 
+import { Router, Request, Response } from 'express';
+import { requireAiConsent, AuthenticatedRequest } from './auth';
+
 export const OriRoutes = Router();
 
 /**
@@ -20,7 +23,7 @@ interface OriRequest {
 }
 
 // POST /api/ai/Ori - Generate Ori's response
-OriRoutes.post('/Ori', async (req: Request, res: Response) => {
+OriRoutes.post('/Ori', requireAiConsent, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { systemPrompt, conversationHistory, userMessage } = req.body as OriRequest;
 
@@ -30,7 +33,7 @@ OriRoutes.post('/Ori', async (req: Request, res: Response) => {
 
     // Check for OpenAI API key - PREFERRED for conversational quality
     const openaiKey = process.env.OPENAI_API_KEY;
-    
+
     if (openaiKey) {
       try {
         // Parse conversation history into proper message format
@@ -87,7 +90,7 @@ OriRoutes.post('/Ori', async (req: Request, res: Response) => {
         if (response.ok) {
           const data = await response.json() as { choices: Array<{ message: { content: string } }> };
           const OriResponse = data.choices[0]?.message?.content;
-          
+
           if (OriResponse) {
             console.log('✅ Ori response generated via OpenAI');
             return res.json({ response: OriResponse });
@@ -104,7 +107,7 @@ OriRoutes.post('/Ori', async (req: Request, res: Response) => {
 
     // Check for Google AI (Gemini) API key
     const googleAiKey = process.env.GOOGLE_AI_API_KEY;
-    
+
     if (googleAiKey) {
       try {
         const response = await fetch(
@@ -130,11 +133,11 @@ OriRoutes.post('/Ori', async (req: Request, res: Response) => {
         );
 
         if (response.ok) {
-          const data = await response.json() as { 
-            candidates: Array<{ content: { parts: Array<{ text: string }> } }> 
+          const data = await response.json() as {
+            candidates: Array<{ content: { parts: Array<{ text: string }> } }>
           };
           const OriResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
-          
+
           if (OriResponse) {
             console.log('✅ Ori response generated via Gemini');
             return res.json({ response: OriResponse });
@@ -151,7 +154,7 @@ OriRoutes.post('/Ori', async (req: Request, res: Response) => {
 
     // Check for Anthropic API key
     const anthropicKey = process.env.ANTHROPIC_API_KEY;
-    
+
     if (anthropicKey) {
       try {
         const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -174,7 +177,7 @@ OriRoutes.post('/Ori', async (req: Request, res: Response) => {
         if (response.ok) {
           const data = await response.json() as { content: Array<{ text: string }> };
           const OriResponse = data.content[0]?.text;
-          
+
           if (OriResponse) {
             console.log('✅ Ori response generated via Anthropic');
             return res.json({ response: OriResponse });
@@ -199,19 +202,19 @@ OriRoutes.post('/Ori', async (req: Request, res: Response) => {
 });
 
 // POST /api/ai/rectify - Birth time rectification using life events
-OriRoutes.post('/rectify', async (req: Request, res: Response) => {
+OriRoutes.post('/rectify', requireAiConsent, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { birthDate, birthPlace, timeWindow, lifeEvents } = req.body;
 
     if (!birthDate || !birthPlace || !lifeEvents || lifeEvents.length < 3) {
-      return res.status(400).json({ 
-        error: 'Requires birth date, place, and at least 3 life events' 
+      return res.status(400).json({
+        error: 'Requires birth date, place, and at least 3 life events'
       });
     }
 
     const openaiKey = process.env.OPENAI_API_KEY;
     const googleAiKey = process.env.GOOGLE_AI_API_KEY;
-    
+
     if (!openaiKey && !googleAiKey) {
       return res.status(500).json({ error: 'AI not configured' });
     }
@@ -232,9 +235,9 @@ BIRTH DATA:
 - Additional context: ${timeWindow.context || 'None provided'}
 
 LIFE EVENTS BY CATEGORY:
-${lifeEvents.map((e: { date: string; type: string; description: string }, i: number) => 
-  `${i + 1}. ${e.date} - ${e.type}: ${e.description}`
-).join('\n')}
+${lifeEvents.map((e: { date: string; type: string; description: string }, i: number) =>
+      `${i + 1}. ${e.date} - ${e.type}: ${e.description}`
+    ).join('\n')}
 
 RECTIFICATION METHOD:
 You must systematically test birth times within the window by checking which time produces a chart where major transits/progressions align with the life events.
@@ -342,7 +345,7 @@ Respond with ONLY valid JSON (no markdown, no code fences):
     }
 
     const result = JSON.parse(jsonStr.trim());
-    
+
     // Ensure disclaimer exists
     if (!result.disclaimer) {
       result.disclaimer = 'This is an astrological hypothesis based on correlating life events with planetary transits. It should not be treated as factual or scientifically verified.';
@@ -361,15 +364,15 @@ OriRoutes.get('/Ori/status', (req: Request, res: Response) => {
   const hasOpenAI = !!process.env.OPENAI_API_KEY;
   const hasGoogleAI = !!process.env.GOOGLE_AI_API_KEY;
   const hasAnthropic = !!process.env.ANTHROPIC_API_KEY;
-  
+
   const configured = hasOpenAI || hasGoogleAI || hasAnthropic;
   const provider = hasOpenAI ? 'openai' : hasGoogleAI ? 'gemini' : hasAnthropic ? 'anthropic' : 'fallback';
-  
+
   res.json({
     configured,
     provider,
-    message: configured 
-      ? `AI is configured and ready (${provider})` 
+    message: configured
+      ? `AI is configured and ready (${provider})`
       : 'Using fallback responses. Set OPENAI_API_KEY for best results, or GOOGLE_AI_API_KEY or ANTHROPIC_API_KEY.',
   });
 });

@@ -1,5 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { google } from 'googleapis';
+import { prisma } from '../lib/prisma';
+import { AuthenticatedRequest, requireAuth } from './auth';
+import sanitize from 'sanitize-filename';
 
 export const cloudStorageRoutes = Router();
 
@@ -16,10 +19,6 @@ const getGoogleOAuth2Client = () => {
   return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 };
 
-// In-memory token storage (in production, use database per user)
-let googleTokens: { access_token?: string; refresh_token?: string } | null = null;
-let dropboxToken: string | null = null;
-
 // ============================================
 // GOOGLE DRIVE
 // ============================================
@@ -27,9 +26,9 @@ let dropboxToken: string | null = null;
 // GET /api/cloud/google/auth - Start Google OAuth flow
 cloudStorageRoutes.get('/google/auth', (req: Request, res: Response) => {
   const oauth2Client = getGoogleOAuth2Client();
-  
+
   if (!oauth2Client) {
-    return res.status(500).json({ 
+    return res.status(500).json({
       error: 'Google Drive not configured',
       setup: 'Add GOOGLE_DRIVE_CLIENT_ID and GOOGLE_DRIVE_CLIENT_SECRET to .env'
     });
@@ -50,8 +49,10 @@ cloudStorageRoutes.get('/google/auth', (req: Request, res: Response) => {
 });
 
 // GET /api/cloud/google/callback - OAuth callback
-cloudStorageRoutes.get('/google/callback', async (req: Request, res: Response) => {
+// Using requireAuth to attach token to current user
+cloudStorageRoutes.get('/google/callback', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   const { code } = req.query;
+  const userId = req.authUser!.uid;
 
   if (!code || typeof code !== 'string') {
     return res.status(400).send('Missing authorization code');
@@ -64,11 +65,18 @@ cloudStorageRoutes.get('/google/callback', async (req: Request, res: Response) =
 
   try {
     const { tokens } = await oauth2Client.getToken(code);
-    googleTokens = {
-      access_token: tokens.access_token ?? undefined,
-      refresh_token: tokens.refresh_token ?? undefined,
-    };
-    
+
+    // Save refresh token to DB if present
+    if (tokens.refresh_token) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { googleRefreshToken: tokens.refresh_token },
+      });
+    }
+
+    // Note: We don't save access_token to DB as it expires quickly. 
+    // We regenerate it from refresh_token on demand.
+
     // Redirect back to app with success
     res.redirect('http://localhost:5173/import/cloud?provider=google&status=connected');
   } catch (error) {
@@ -78,25 +86,47 @@ cloudStorageRoutes.get('/google/callback', async (req: Request, res: Response) =
 });
 
 // GET /api/cloud/google/status - Check connection status
-cloudStorageRoutes.get('/google/status', (req: Request, res: Response) => {
-  res.json({ 
-    connected: !!googleTokens?.access_token,
+cloudStorageRoutes.get('/google/status', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.authUser!.uid;
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { googleRefreshToken: true }
+  });
+
+  res.json({
+    connected: !!user?.googleRefreshToken,
     configured: !!process.env.GOOGLE_DRIVE_CLIENT_ID
   });
 });
 
-// GET /api/cloud/google/files - List files from Google Drive
-cloudStorageRoutes.get('/google/files', async (req: Request, res: Response) => {
-  if (!googleTokens?.access_token) {
-    return res.status(401).json({ error: 'Not connected to Google Drive' });
-  }
+// Helper to get fresh access token for user
+async function getUserGoogleAuth(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { googleRefreshToken: true }
+  });
+
+  if (!user?.googleRefreshToken) return null;
 
   const oauth2Client = getGoogleOAuth2Client();
-  if (!oauth2Client) {
-    return res.status(500).json({ error: 'Google Drive not configured' });
-  }
+  if (!oauth2Client) return null;
 
-  oauth2Client.setCredentials(googleTokens);
+  oauth2Client.setCredentials({
+    refresh_token: user.googleRefreshToken,
+  });
+
+  return oauth2Client;
+}
+
+// GET /api/cloud/google/files - List files from Google Drive
+cloudStorageRoutes.get('/google/files', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.authUser!.uid;
+  const oauth2Client = await getUserGoogleAuth(userId);
+
+  if (!oauth2Client) {
+    return res.status(401).json({ error: 'Not connected to Google Drive' });
+  }
 
   const { folderId, pageToken, mimeType } = req.query;
 
@@ -110,9 +140,7 @@ cloudStorageRoutes.get('/google/files', async (req: Request, res: Response) => {
     } else {
       query += " and 'root' in parents";
     }
-    
-    // Filter by mime type if specified (e.g., images, documents)
-    // Always include folders so users can navigate
+
     if (mimeType === 'images') {
       query += " and (mimeType contains 'image/' or mimeType = 'application/vnd.google-apps.folder')";
     } else if (mimeType === 'documents') {
@@ -140,30 +168,24 @@ cloudStorageRoutes.get('/google/files', async (req: Request, res: Response) => {
 });
 
 // GET /api/cloud/google/download/:fileId - Download a file
-cloudStorageRoutes.get('/google/download/:fileId', async (req: Request, res: Response) => {
-  if (!googleTokens?.access_token) {
+cloudStorageRoutes.get('/google/download/:fileId', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.authUser!.uid;
+  const oauth2Client = await getUserGoogleAuth(userId);
+
+  if (!oauth2Client) {
     return res.status(401).json({ error: 'Not connected to Google Drive' });
   }
-
-  const oauth2Client = getGoogleOAuth2Client();
-  if (!oauth2Client) {
-    return res.status(500).json({ error: 'Google Drive not configured' });
-  }
-
-  oauth2Client.setCredentials(googleTokens);
 
   const { fileId } = req.params;
 
   try {
     const drive = google.drive({ version: 'v3', auth: oauth2Client });
 
-    // Get file metadata first
     const metadata = await drive.files.get({
       fileId,
       fields: 'name, mimeType, size',
     });
 
-    // Download file content
     const response = await drive.files.get(
       { fileId, alt: 'media' },
       { responseType: 'arraybuffer' }
@@ -182,14 +204,23 @@ cloudStorageRoutes.get('/google/download/:fileId', async (req: Request, res: Res
 });
 
 // POST /api/cloud/google/disconnect - Disconnect Google Drive
-cloudStorageRoutes.post('/google/disconnect', (req: Request, res: Response) => {
-  googleTokens = null;
-  res.json({ success: true });
+cloudStorageRoutes.post('/google/disconnect', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    await prisma.user.update({
+      where: { id: req.authUser!.uid },
+      data: { googleRefreshToken: null },
+    });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete google token error:', error);
+    res.status(500).json({ error: 'Failed to disconnect' });
+  }
 });
 
 // POST /api/cloud/import - Import a file from cloud storage
-cloudStorageRoutes.post('/import', async (req: Request, res: Response) => {
+cloudStorageRoutes.post('/import', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   const { provider, fileId, fileName, mimeType, content, artifactType } = req.body;
+  const userId = req.authUser!.uid;
 
   if (!content || !fileName) {
     return res.status(400).json({ error: 'Missing required fields' });
@@ -198,7 +229,6 @@ cloudStorageRoutes.post('/import', async (req: Request, res: Response) => {
   try {
     const fs = require('fs');
     const path = require('path');
-    const { prisma } = require('../lib/prisma');
     const { extractContent } = require('../services/contentExtractor');
 
     // Create uploads directory if needed
@@ -208,14 +238,15 @@ cloudStorageRoutes.post('/import', async (req: Request, res: Response) => {
     }
 
     // Save file
-    const safeFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const safeFileName = sanitize(fileName);
     const filePath = path.join(uploadsDir, `${Date.now()}-${safeFileName}`);
     const fileBuffer = Buffer.from(content, 'base64');
     fs.writeFileSync(filePath, fileBuffer);
 
-    // Create artifact record
+    // Create artifact record scoped to current user
     const artifact = await prisma.artifact.create({
       data: {
+        userId,
         type: artifactType || 'document',
         sourceSystem: provider || 'cloud',
         sourcePathOrUrl: `/uploads/cloud/${path.basename(filePath)}`,
@@ -227,19 +258,18 @@ cloudStorageRoutes.post('/import', async (req: Request, res: Response) => {
     // Extract content from file
     let extractedText = '';
     let aiAnalysis = null;
-    
+
     try {
       const result = await extractContent(filePath, mimeType, artifact.id);
       extractedText = result.text || '';
-      
-      // Update artifact with extracted text
+
       if (extractedText) {
         await prisma.artifact.update({
           where: { id: artifact.id },
           data: { transcribedText: extractedText },
         });
 
-        // Trigger AI analysis
+        // Trigger AI analysis (check if user has consent later)
         const openaiKey = process.env.OPENAI_API_KEY;
         if (openaiKey) {
           const fetch = require('node-fetch');
@@ -279,7 +309,6 @@ cloudStorageRoutes.post('/import', async (req: Request, res: Response) => {
             const jsonMatch = responseContent.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
               aiAnalysis = JSON.parse(jsonMatch[0]);
-              // Update with AI summary
               await prisma.artifact.update({
                 where: { id: artifact.id },
                 data: { shortDescription: aiAnalysis.summary || fileName },
@@ -315,7 +344,7 @@ const DROPBOX_REDIRECT_URI = process.env.DROPBOX_REDIRECT_URI || 'http://localho
 // GET /api/cloud/dropbox/auth - Start Dropbox OAuth flow
 cloudStorageRoutes.get('/dropbox/auth', (req: Request, res: Response) => {
   if (!DROPBOX_APP_KEY) {
-    return res.status(500).json({ 
+    return res.status(500).json({
       error: 'Dropbox not configured',
       setup: 'Add DROPBOX_APP_KEY and DROPBOX_APP_SECRET to .env'
     });
@@ -327,8 +356,9 @@ cloudStorageRoutes.get('/dropbox/auth', (req: Request, res: Response) => {
 });
 
 // GET /api/cloud/dropbox/callback - OAuth callback
-cloudStorageRoutes.get('/dropbox/callback', async (req: Request, res: Response) => {
+cloudStorageRoutes.get('/dropbox/callback', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   const { code } = req.query;
+  const userId = req.authUser!.uid;
 
   if (!code || typeof code !== 'string') {
     return res.status(400).send('Missing authorization code');
@@ -354,9 +384,12 @@ cloudStorageRoutes.get('/dropbox/callback', async (req: Request, res: Response) 
     });
 
     const data = await response.json() as { access_token?: string; error?: string };
-    
+
     if (data.access_token) {
-      dropboxToken = data.access_token;
+      await prisma.user.update({
+        where: { id: userId },
+        data: { dropboxToken: data.access_token },
+      });
       res.redirect('http://localhost:5173/import/cloud?provider=dropbox&status=connected');
     } else {
       throw new Error('No access token received');
@@ -368,15 +401,34 @@ cloudStorageRoutes.get('/dropbox/callback', async (req: Request, res: Response) 
 });
 
 // GET /api/cloud/dropbox/status - Check connection status
-cloudStorageRoutes.get('/dropbox/status', (req: Request, res: Response) => {
-  res.json({ 
-    connected: !!dropboxToken,
+cloudStorageRoutes.get('/dropbox/status', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.authUser!.uid;
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { dropboxToken: true }
+  });
+
+  res.json({
+    connected: !!user?.dropboxToken,
     configured: !!DROPBOX_APP_KEY
   });
 });
 
+// Helper to get dropbox token
+async function getUserDropboxToken(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { dropboxToken: true }
+  });
+  return user?.dropboxToken;
+}
+
 // GET /api/cloud/dropbox/files - List files from Dropbox
-cloudStorageRoutes.get('/dropbox/files', async (req: Request, res: Response) => {
+cloudStorageRoutes.get('/dropbox/files', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.authUser!.uid;
+  const dropboxToken = await getUserDropboxToken(userId);
+
   if (!dropboxToken) {
     return res.status(401).json({ error: 'Not connected to Dropbox' });
   }
@@ -384,11 +436,11 @@ cloudStorageRoutes.get('/dropbox/files', async (req: Request, res: Response) => 
   const { path = '', cursor } = req.query;
 
   try {
-    const endpoint = cursor 
+    const endpoint = cursor
       ? 'https://api.dropboxapi.com/2/files/list_folder/continue'
       : 'https://api.dropboxapi.com/2/files/list_folder';
 
-    const body = cursor 
+    const body = cursor
       ? { cursor }
       : { path: path || '', recursive: false, limit: 50 };
 
@@ -401,7 +453,7 @@ cloudStorageRoutes.get('/dropbox/files', async (req: Request, res: Response) => 
       body: JSON.stringify(body),
     });
 
-    const data = await response.json() as { 
+    const data = await response.json() as {
       entries: Array<{ id: string; name: string; path_display: string; '.tag': string; size?: number; client_modified?: string }>;
       has_more: boolean;
       cursor: string;
@@ -431,7 +483,10 @@ cloudStorageRoutes.get('/dropbox/files', async (req: Request, res: Response) => 
 });
 
 // GET /api/cloud/dropbox/download - Download a file
-cloudStorageRoutes.get('/dropbox/download', async (req: Request, res: Response) => {
+cloudStorageRoutes.get('/dropbox/download', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.authUser!.uid;
+  const dropboxToken = await getUserDropboxToken(userId);
+
   if (!dropboxToken) {
     return res.status(401).json({ error: 'Not connected to Dropbox' });
   }
@@ -466,9 +521,17 @@ cloudStorageRoutes.get('/dropbox/download', async (req: Request, res: Response) 
 });
 
 // POST /api/cloud/dropbox/disconnect - Disconnect Dropbox
-cloudStorageRoutes.post('/dropbox/disconnect', (req: Request, res: Response) => {
-  dropboxToken = null;
-  res.json({ success: true });
+cloudStorageRoutes.post('/dropbox/disconnect', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    await prisma.user.update({
+      where: { id: req.authUser!.uid },
+      data: { dropboxToken: null },
+    });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete dropbox token error:', error);
+    res.status(500).json({ error: 'Failed to disconnect' });
+  }
 });
 
 // ============================================
@@ -476,14 +539,24 @@ cloudStorageRoutes.post('/dropbox/disconnect', (req: Request, res: Response) => 
 // ============================================
 
 // GET /api/cloud/status - Get all cloud storage connection statuses
-cloudStorageRoutes.get('/status', (req: Request, res: Response) => {
+cloudStorageRoutes.get('/status', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.authUser!.uid;
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      googleRefreshToken: true,
+      dropboxToken: true
+    }
+  });
+
   res.json({
     google: {
-      connected: !!googleTokens?.access_token,
+      connected: !!user?.googleRefreshToken,
       configured: !!process.env.GOOGLE_DRIVE_CLIENT_ID,
     },
     dropbox: {
-      connected: !!dropboxToken,
+      connected: !!user?.dropboxToken,
       configured: !!DROPBOX_APP_KEY,
     },
   });

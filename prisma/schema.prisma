@@ -19,6 +19,9 @@ model User {
   passwordHash  String?
   name          String?
   picture       String?
+  googleRefreshToken String?
+  dropboxToken       String?
+  aiConsent          Boolean  @default(false)
   
   // Relations
   chapters      Chapter[]

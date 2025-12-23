@@ -66,6 +66,12 @@ const COOKIE_OPTIONS = {
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
 };
 
+
+
+
+
+
+
 // Google OAuth2 client for authentication
 const getAuthOAuth2Client = () => {
   const clientId = process.env.GOOGLE_DRIVE_CLIENT_ID;
@@ -318,6 +324,7 @@ export interface AuthenticatedRequest extends Request {
     email?: string;
     provider: 'firebase' | 'local';
     claims?: Record<string, unknown>;
+    aiConsent?: boolean;
   };
 }
 
@@ -358,6 +365,33 @@ export const requireAuth = async (req: AuthenticatedRequest, res: Response, next
   }
 
   return res.status(401).json({ error: 'Authentication required' });
+};
+
+// Middleware to require AI consent
+export const requireAiConsent = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  if (!req.authUser || !req.authUser.uid) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.authUser.uid },
+      select: { aiConsent: true }
+    });
+
+    if (user?.aiConsent) {
+      req.authUser.aiConsent = true;
+      return next();
+    }
+
+    return res.status(403).json({
+      error: 'AI Consent Required',
+      message: 'You must enable AI processing in your settings to use this feature.'
+    });
+  } catch (error) {
+    console.error('AI Consent check error:', error);
+    return res.status(500).json({ error: 'Failed to verify AI permissions' });
+  }
 };
 
 // Optional auth
