@@ -8,37 +8,62 @@ const express_1 = require("express");
 const googleapis_1 = require("googleapis");
 const client_1 = require("@prisma/client");
 const crypto_1 = __importDefault(require("crypto"));
+const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const zod_1 = require("zod");
+const firebase_admin_1 = __importDefault(require("firebase-admin"));
 exports.authRoutes = (0, express_1.Router)();
 const prisma = new client_1.PrismaClient();
-// Simple JWT-like token using HMAC (for single-user local app)
-const JWT_SECRET = process.env.JWT_SECRET || 'origins-dev-secret-change-in-production';
-// Token utilities
+// Firebase Admin (preferred auth path)
+const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID;
+if (!firebase_admin_1.default.apps.length && FIREBASE_PROJECT_ID) {
+    firebase_admin_1.default.initializeApp({
+        credential: firebase_admin_1.default.credential.applicationDefault(),
+        projectId: FIREBASE_PROJECT_ID,
+    });
+}
+const firebaseAuth = firebase_admin_1.default.apps.length ? firebase_admin_1.default.auth() : null;
+// JWT Config
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+    console.warn('WARNING: JWT_SECRET is not set. Authentication will fail.');
+}
+// Token utilities using jsonwebtoken
 function createToken(payload) {
-    const exp = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
-    const data = JSON.stringify({ ...payload, exp });
-    const signature = crypto_1.default.createHmac('sha256', JWT_SECRET).update(data).digest('base64url');
-    return Buffer.from(data).toString('base64url') + '.' + signature;
+    if (!JWT_SECRET) {
+        throw new Error('JWT_SECRET not set');
+    }
+    return jsonwebtoken_1.default.sign(payload, JWT_SECRET, { expiresIn: '7d' });
 }
 function verifyToken(token) {
+    if (!JWT_SECRET)
+        return null;
     try {
-        const [dataB64, signature] = token.split('.');
-        if (!dataB64 || !signature)
-            return null;
-        const data = Buffer.from(dataB64, 'base64url').toString();
-        const expectedSig = crypto_1.default.createHmac('sha256', JWT_SECRET).update(data).digest('base64url');
-        if (signature !== expectedSig)
-            return null;
-        const payload = JSON.parse(data);
-        if (payload.exp < Date.now())
-            return null;
-        return payload;
+        return jsonwebtoken_1.default.verify(token, JWT_SECRET);
     }
     catch {
         return null;
     }
 }
-// Google OAuth2 client for authentication (separate from Drive)
+async function verifyFirebaseToken(token) {
+    if (!firebaseAuth)
+        return null;
+    try {
+        const decoded = await firebaseAuth.verifyIdToken(token);
+        return decoded;
+    }
+    catch (err) {
+        return null;
+    }
+}
+// Cookie options
+const COOKIE_NAME = 'origins_token';
+const COOKIE_OPTIONS = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production', // true in prod
+    sameSite: 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+};
+// Google OAuth2 client for authentication
 const getAuthOAuth2Client = () => {
     const clientId = process.env.GOOGLE_DRIVE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_DRIVE_CLIENT_SECRET;
@@ -57,16 +82,11 @@ exports.authRoutes.get('/google', (req, res) => {
             setup: 'Add GOOGLE_DRIVE_CLIENT_ID and GOOGLE_DRIVE_CLIENT_SECRET to .env'
         });
     }
-    // Minimal scopes for authentication only
-    const scopes = [
-        'openid',
-        'email',
-        'profile',
-    ];
+    const scopes = ['openid', 'email', 'profile'];
     const authUrl = oauth2Client.generateAuthUrl({
         access_type: 'offline',
         scope: scopes,
-        prompt: 'select_account', // Allow user to choose account
+        prompt: 'select_account',
     });
     res.json({ authUrl });
 });
@@ -83,13 +103,11 @@ exports.authRoutes.get('/google/callback', async (req, res) => {
     try {
         const { tokens } = await oauth2Client.getToken(code);
         oauth2Client.setCredentials(tokens);
-        // Get user info from Google
         const oauth2 = googleapis_1.google.oauth2({ version: 'v2', auth: oauth2Client });
         const { data: userInfo } = await oauth2.userinfo.get();
         if (!userInfo.email || !userInfo.id) {
             return res.redirect('http://localhost:5173/login?error=no_email');
         }
-        // Find or create user
         let user = await prisma.user.findUnique({
             where: { googleId: userInfo.id }
         });
@@ -104,7 +122,6 @@ exports.authRoutes.get('/google/callback', async (req, res) => {
             });
         }
         else {
-            // Update user info on each login
             user = await prisma.user.update({
                 where: { id: user.id },
                 data: {
@@ -114,10 +131,11 @@ exports.authRoutes.get('/google/callback', async (req, res) => {
                 }
             });
         }
-        // Create session token
         const token = createToken({ userId: user.id, email: user.email });
-        // Redirect with token (frontend will store it)
-        res.redirect(`http://localhost:5173/login/callback?token=${token}`);
+        // Set HttpOnly cookie
+        res.cookie(COOKIE_NAME, token, COOKIE_OPTIONS);
+        // Redirect to frontend (token is in cookie now)
+        res.redirect('http://localhost:5173/login/callback?success=true');
     }
     catch (error) {
         console.error('Google OAuth error:', error);
@@ -125,19 +143,24 @@ exports.authRoutes.get('/google/callback', async (req, res) => {
     }
 });
 // GET /api/auth/me - Get current user
-exports.authRoutes.get('/me', async (req, res) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-        return res.status(401).json({ error: 'No token provided' });
+exports.authRoutes.get('/me', exports.requireAuth, async (req, res) => {
+    const authUser = req.authUser;
+    if (!authUser) {
+        return res.status(401).json({ error: 'Authentication required' });
     }
-    const token = authHeader.slice(7);
-    const payload = verifyToken(token);
-    if (!payload) {
-        return res.status(401).json({ error: 'Invalid or expired token' });
+    if (authUser.provider === 'firebase') {
+        return res.json({
+            user: {
+                uid: authUser.uid,
+                email: authUser.email,
+                provider: 'firebase',
+                claims: authUser.claims,
+            },
+        });
     }
     try {
         const user = await prisma.user.findUnique({
-            where: { id: payload.userId },
+            where: { id: authUser.uid },
             select: { id: true, email: true, name: true, picture: true, createdAt: true }
         });
         if (!user) {
@@ -150,10 +173,9 @@ exports.authRoutes.get('/me', async (req, res) => {
         res.status(500).json({ error: 'Failed to get user' });
     }
 });
-// POST /api/auth/logout - Logout (client-side token removal, but we can track it)
+// POST /api/auth/logout
 exports.authRoutes.post('/logout', (req, res) => {
-    // For a simple implementation, logout is handled client-side by removing the token
-    // In production, you might want to maintain a token blacklist
+    res.clearCookie(COOKIE_NAME);
     res.json({ success: true });
 });
 // ============================================
@@ -168,7 +190,6 @@ const loginSchema = zod_1.z.object({
     email: zod_1.z.string().email('Invalid email address'),
     password: zod_1.z.string().min(1, 'Password is required'),
 });
-// Hash password using PBKDF2
 function hashPassword(password) {
     const salt = crypto_1.default.randomBytes(16).toString('hex');
     const hash = crypto_1.default.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
@@ -179,7 +200,7 @@ function verifyPassword(password, stored) {
     const verifyHash = crypto_1.default.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
     return hash === verifyHash;
 }
-// POST /api/auth/signup - Email/password signup
+// POST /api/auth/signup
 exports.authRoutes.post('/signup', async (req, res) => {
     try {
         const parsed = signupSchema.safeParse(req.body);
@@ -190,14 +211,12 @@ exports.authRoutes.post('/signup', async (req, res) => {
             });
         }
         const { email, password, name } = parsed.data;
-        // Check if user already exists
         const existingUser = await prisma.user.findUnique({
             where: { email }
         });
         if (existingUser) {
             return res.status(409).json({ error: 'Email already registered' });
         }
-        // Create user with hashed password
         const passwordHash = hashPassword(password);
         const user = await prisma.user.create({
             data: {
@@ -206,11 +225,10 @@ exports.authRoutes.post('/signup', async (req, res) => {
                 name: name || null,
             }
         });
-        // Create session token
         const token = createToken({ userId: user.id, email: user.email });
+        res.cookie(COOKIE_NAME, token, COOKIE_OPTIONS);
         res.status(201).json({
             user: { id: user.id, email: user.email, name: user.name },
-            token,
         });
     }
     catch (error) {
@@ -218,7 +236,7 @@ exports.authRoutes.post('/signup', async (req, res) => {
         res.status(500).json({ error: 'Failed to create account' });
     }
 });
-// POST /api/auth/login - Email/password login
+// POST /api/auth/login
 exports.authRoutes.post('/login', async (req, res) => {
     try {
         const parsed = loginSchema.safeParse(req.body);
@@ -229,22 +247,19 @@ exports.authRoutes.post('/login', async (req, res) => {
             });
         }
         const { email, password } = parsed.data;
-        // Find user by email
         const user = await prisma.user.findUnique({
             where: { email }
         });
         if (!user || !user.passwordHash) {
             return res.status(401).json({ error: 'Invalid email or password' });
         }
-        // Verify password
         if (!verifyPassword(password, user.passwordHash)) {
             return res.status(401).json({ error: 'Invalid email or password' });
         }
-        // Create session token
         const token = createToken({ userId: user.id, email: user.email });
+        res.cookie(COOKIE_NAME, token, COOKIE_OPTIONS);
         res.json({
             user: { id: user.id, email: user.email, name: user.name, picture: user.picture },
-            token,
         });
     }
     catch (error) {
@@ -252,28 +267,67 @@ exports.authRoutes.post('/login', async (req, res) => {
         res.status(500).json({ error: 'Failed to login' });
     }
 });
-const requireAuth = (req, res, next) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-        return res.status(401).json({ error: 'Authentication required' });
+const requireAuth = async (req, res, next) => {
+    // 1. Check for cookie (Primary)
+    const cookieToken = req.cookies?.[COOKIE_NAME];
+    if (cookieToken) {
+        const payload = verifyToken(cookieToken);
+        if (payload) {
+            req.authUser = {
+                uid: payload.userId,
+                email: payload.email,
+                provider: 'local',
+            };
+            return next();
+        }
     }
-    const token = authHeader.slice(7);
-    const payload = verifyToken(token);
-    if (!payload) {
-        return res.status(401).json({ error: 'Invalid or expired token' });
-    }
-    req.user = { userId: payload.userId, email: payload.email };
-    next();
-};
-exports.requireAuth = requireAuth;
-// Optional auth - doesn't fail if no token, just doesn't set user
-const optionalAuth = (req, res, next) => {
+    // 2. Check for Bearer header (Firebase or fallback)
     const authHeader = req.headers.authorization;
     if (authHeader?.startsWith('Bearer ')) {
         const token = authHeader.slice(7);
-        const payload = verifyToken(token);
+        // Try Firebase
+        const firebaseUser = await verifyFirebaseToken(token);
+        if (firebaseUser) {
+            req.authUser = {
+                uid: firebaseUser.uid,
+                email: firebaseUser.email,
+                provider: 'firebase',
+                claims: firebaseUser,
+            };
+            return next();
+        }
+        // IMPORTANT: Removed legacy HMAC token verification from header.
+        // If you need legacy support for API tokens, implement a dedicated API key system.
+    }
+    return res.status(401).json({ error: 'Authentication required' });
+};
+exports.requireAuth = requireAuth;
+// Optional auth
+const optionalAuth = async (req, res, next) => {
+    const cookieToken = req.cookies?.[COOKIE_NAME];
+    if (cookieToken) {
+        const payload = verifyToken(cookieToken);
         if (payload) {
-            req.user = { userId: payload.userId, email: payload.email };
+            req.authUser = {
+                uid: payload.userId,
+                email: payload.email,
+                provider: 'local',
+            };
+            return next();
+        }
+    }
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.slice(7);
+        const firebaseUser = await verifyFirebaseToken(token);
+        if (firebaseUser) {
+            req.authUser = {
+                uid: firebaseUser.uid,
+                email: firebaseUser.email,
+                provider: 'firebase',
+                claims: firebaseUser,
+            };
+            return next();
         }
     }
     next();

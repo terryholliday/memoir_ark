@@ -21,8 +21,9 @@ const artifactUpdateSchema = artifactCreateSchema.partial();
 // GET /api/artifacts - List all artifacts with optional type filter
 exports.artifactRoutes.get('/', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { type } = req.query;
-        const where = {};
+        const where = { userId };
         if (type && typeof type === 'string') {
             where.type = type;
         }
@@ -45,9 +46,10 @@ exports.artifactRoutes.get('/', async (req, res) => {
 // GET /api/artifacts/:id - Get single artifact with linked entities
 exports.artifactRoutes.get('/:id', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { id } = req.params;
         const artifact = await prisma_1.prisma.artifact.findUnique({
-            where: { id },
+            where: { id, userId },
             include: {
                 eventLinks: {
                     include: {
@@ -79,6 +81,7 @@ exports.artifactRoutes.get('/:id', async (req, res) => {
 // POST /api/artifacts - Create artifact
 exports.artifactRoutes.post('/', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const validationResult = artifactCreateSchema.safeParse(req.body);
         if (!validationResult.success) {
             return res.status(400).json({
@@ -89,6 +92,7 @@ exports.artifactRoutes.post('/', async (req, res) => {
         const data = validationResult.data;
         const artifact = await prisma_1.prisma.artifact.create({
             data: {
+                userId,
                 type: data.type,
                 sourceSystem: data.sourceSystem,
                 sourcePathOrUrl: data.sourcePathOrUrl,
@@ -107,8 +111,9 @@ exports.artifactRoutes.post('/', async (req, res) => {
 // PUT /api/artifacts/:id - Update artifact
 exports.artifactRoutes.put('/:id', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { id } = req.params;
-        const existingArtifact = await prisma_1.prisma.artifact.findUnique({ where: { id } });
+        const existingArtifact = await prisma_1.prisma.artifact.findUnique({ where: { id, userId } });
         if (!existingArtifact) {
             return res.status(404).json({ error: 'Artifact not found' });
         }
@@ -134,9 +139,10 @@ exports.artifactRoutes.put('/:id', async (req, res) => {
 // POST /api/artifacts/:id/analyze - AI analysis of artifact content
 exports.artifactRoutes.post('/:id/analyze', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { id } = req.params;
         const artifact = await prisma_1.prisma.artifact.findUnique({
-            where: { id },
+            where: { id, userId },
             include: {
                 eventLinks: { include: { event: true } },
                 personLinks: { include: { person: true } },
@@ -263,8 +269,9 @@ ${content.substring(0, 8000)}`
 // DELETE /api/artifacts/:id - Delete artifact (hard delete)
 exports.artifactRoutes.delete('/:id', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { id } = req.params;
-        const existingArtifact = await prisma_1.prisma.artifact.findUnique({ where: { id } });
+        const existingArtifact = await prisma_1.prisma.artifact.findUnique({ where: { id, userId } });
         if (!existingArtifact) {
             return res.status(404).json({ error: 'Artifact not found' });
         }

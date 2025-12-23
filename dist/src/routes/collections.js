@@ -12,7 +12,9 @@ const collectionSchema = zod_1.z.object({
 // GET /api/collections - List all collections
 exports.collectionRoutes.get('/', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const collections = await prisma_1.prisma.collection.findMany({
+            where: { userId },
             include: {
                 _count: {
                     select: {
@@ -34,9 +36,10 @@ exports.collectionRoutes.get('/', async (req, res) => {
 // GET /api/collections/:id - Get single collection with all linked items
 exports.collectionRoutes.get('/:id', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { id } = req.params;
         const collection = await prisma_1.prisma.collection.findUnique({
-            where: { id },
+            where: { id, userId },
             include: {
                 eventLinks: {
                     include: {
@@ -77,12 +80,14 @@ exports.collectionRoutes.get('/:id', async (req, res) => {
 // POST /api/collections - Create new collection
 exports.collectionRoutes.post('/', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const parsed = collectionSchema.safeParse(req.body);
         if (!parsed.success) {
             return res.status(400).json({ error: parsed.error.errors });
         }
         const collection = await prisma_1.prisma.collection.create({
             data: {
+                userId,
                 name: parsed.data.name,
                 description: parsed.data.description || '',
             },
@@ -97,7 +102,11 @@ exports.collectionRoutes.post('/', async (req, res) => {
 // PUT /api/collections/:id - Update collection
 exports.collectionRoutes.put('/:id', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { id } = req.params;
+        const existing = await prisma_1.prisma.collection.findUnique({ where: { id, userId } });
+        if (!existing)
+            return res.status(404).json({ error: 'Collection not found' });
         const parsed = collectionSchema.partial().safeParse(req.body);
         if (!parsed.success) {
             return res.status(400).json({ error: parsed.error.errors });
@@ -119,7 +128,11 @@ exports.collectionRoutes.put('/:id', async (req, res) => {
 // DELETE /api/collections/:id - Delete collection
 exports.collectionRoutes.delete('/:id', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { id } = req.params;
+        const existing = await prisma_1.prisma.collection.findUnique({ where: { id, userId } });
+        if (!existing)
+            return res.status(404).json({ error: 'Collection not found' });
         await prisma_1.prisma.collection.delete({ where: { id } });
         res.status(204).send();
     }
@@ -137,7 +150,16 @@ exports.collectionRoutes.delete('/:id', async (req, res) => {
 // POST /api/collections/:id/events/:eventId
 exports.collectionRoutes.post('/:id/events/:eventId', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { id, eventId } = req.params;
+        // Verify ownership of both
+        const [collection, event] = await Promise.all([
+            prisma_1.prisma.collection.findUnique({ where: { id, userId } }),
+            prisma_1.prisma.event.findUnique({ where: { id: eventId, userId } }),
+        ]);
+        if (!collection || !event) {
+            return res.status(404).json({ error: 'Collection or event not found' });
+        }
         const link = await prisma_1.prisma.collectionEvent.create({
             data: { collectionId: id, eventId },
         });
@@ -157,7 +179,12 @@ exports.collectionRoutes.post('/:id/events/:eventId', async (req, res) => {
 // DELETE /api/collections/:id/events/:eventId
 exports.collectionRoutes.delete('/:id/events/:eventId', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { id, eventId } = req.params;
+        // Verify ownership (at least of collection)
+        const collection = await prisma_1.prisma.collection.findUnique({ where: { id, userId } });
+        if (!collection)
+            return res.status(404).json({ error: 'Collection not found' });
         await prisma_1.prisma.collectionEvent.delete({
             where: { collectionId_eventId: { collectionId: id, eventId } },
         });
@@ -174,7 +201,15 @@ exports.collectionRoutes.delete('/:id/events/:eventId', async (req, res) => {
 // POST /api/collections/:id/artifacts/:artifactId
 exports.collectionRoutes.post('/:id/artifacts/:artifactId', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { id, artifactId } = req.params;
+        const [collection, artifact] = await Promise.all([
+            prisma_1.prisma.collection.findUnique({ where: { id, userId } }),
+            prisma_1.prisma.artifact.findUnique({ where: { id: artifactId, userId } }),
+        ]);
+        if (!collection || !artifact) {
+            return res.status(404).json({ error: 'Collection or artifact not found' });
+        }
         const link = await prisma_1.prisma.collectionArtifact.create({
             data: { collectionId: id, artifactId },
         });
@@ -194,7 +229,11 @@ exports.collectionRoutes.post('/:id/artifacts/:artifactId', async (req, res) => 
 // DELETE /api/collections/:id/artifacts/:artifactId
 exports.collectionRoutes.delete('/:id/artifacts/:artifactId', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { id, artifactId } = req.params;
+        const collection = await prisma_1.prisma.collection.findUnique({ where: { id, userId } });
+        if (!collection)
+            return res.status(404).json({ error: 'Collection not found' });
         await prisma_1.prisma.collectionArtifact.delete({
             where: { collectionId_artifactId: { collectionId: id, artifactId } },
         });
@@ -211,7 +250,15 @@ exports.collectionRoutes.delete('/:id/artifacts/:artifactId', async (req, res) =
 // POST /api/collections/:id/persons/:personId
 exports.collectionRoutes.post('/:id/persons/:personId', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { id, personId } = req.params;
+        const [collection, person] = await Promise.all([
+            prisma_1.prisma.collection.findUnique({ where: { id, userId } }),
+            prisma_1.prisma.person.findUnique({ where: { id: personId, userId } }),
+        ]);
+        if (!collection || !person) {
+            return res.status(404).json({ error: 'Collection or person not found' });
+        }
         const link = await prisma_1.prisma.collectionPerson.create({
             data: { collectionId: id, personId },
         });
@@ -231,7 +278,11 @@ exports.collectionRoutes.post('/:id/persons/:personId', async (req, res) => {
 // DELETE /api/collections/:id/persons/:personId
 exports.collectionRoutes.delete('/:id/persons/:personId', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { id, personId } = req.params;
+        const collection = await prisma_1.prisma.collection.findUnique({ where: { id, userId } });
+        if (!collection)
+            return res.status(404).json({ error: 'Collection not found' });
         await prisma_1.prisma.collectionPerson.delete({
             where: { collectionId_personId: { collectionId: id, personId } },
         });

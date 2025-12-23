@@ -17,8 +17,9 @@ const personUpdateSchema = personCreateSchema.partial();
 // GET /api/persons - List all persons with optional search
 exports.personRoutes.get('/', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { search } = req.query;
-        const where = {};
+        const where = { userId };
         if (search && typeof search === 'string') {
             where.name = {
                 contains: search,
@@ -43,9 +44,10 @@ exports.personRoutes.get('/', async (req, res) => {
 // GET /api/persons/:id - Get single person with linked events
 exports.personRoutes.get('/:id', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { id } = req.params;
         const person = await prisma_1.prisma.person.findUnique({
-            where: { id },
+            where: { id, userId },
             include: {
                 eventLinks: {
                     include: {
@@ -77,6 +79,7 @@ exports.personRoutes.get('/:id', async (req, res) => {
 // POST /api/persons - Create person
 exports.personRoutes.post('/', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const validationResult = personCreateSchema.safeParse(req.body);
         if (!validationResult.success) {
             return res.status(400).json({
@@ -87,6 +90,7 @@ exports.personRoutes.post('/', async (req, res) => {
         const data = validationResult.data;
         const person = await prisma_1.prisma.person.create({
             data: {
+                userId,
                 name: data.name,
                 role: data.role,
                 relationshipType: data.relationshipType,
@@ -105,8 +109,9 @@ exports.personRoutes.post('/', async (req, res) => {
 // PUT /api/persons/:id - Update person
 exports.personRoutes.put('/:id', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { id } = req.params;
-        const existingPerson = await prisma_1.prisma.person.findUnique({ where: { id } });
+        const existingPerson = await prisma_1.prisma.person.findUnique({ where: { id, userId } });
         if (!existingPerson) {
             return res.status(404).json({ error: 'Person not found' });
         }
@@ -137,8 +142,9 @@ exports.personRoutes.put('/:id', async (req, res) => {
 // DELETE /api/persons/:id - Delete person (hard delete)
 exports.personRoutes.delete('/:id', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { id } = req.params;
-        const existingPerson = await prisma_1.prisma.person.findUnique({ where: { id } });
+        const existingPerson = await prisma_1.prisma.person.findUnique({ where: { id, userId } });
         if (!existingPerson) {
             return res.status(404).json({ error: 'Person not found' });
         }

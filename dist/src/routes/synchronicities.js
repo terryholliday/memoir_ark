@@ -15,8 +15,9 @@ const synchronicityUpdateSchema = synchronicityCreateSchema.partial();
 // GET /api/synchronicities - List all synchronicities
 exports.synchronicityRoutes.get('/', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { type } = req.query;
-        const where = {};
+        const where = { userId };
         if (type && typeof type === 'string') {
             where.type = type;
         }
@@ -39,9 +40,10 @@ exports.synchronicityRoutes.get('/', async (req, res) => {
 // GET /api/synchronicities/:id - Get single synchronicity with linked events
 exports.synchronicityRoutes.get('/:id', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { id } = req.params;
         const synchronicity = await prisma_1.prisma.synchronicity.findUnique({
-            where: { id },
+            where: { id, userId },
             include: {
                 eventLinks: {
                     include: {
@@ -68,6 +70,7 @@ exports.synchronicityRoutes.get('/:id', async (req, res) => {
 // POST /api/synchronicities - Create synchronicity
 exports.synchronicityRoutes.post('/', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const validationResult = synchronicityCreateSchema.safeParse(req.body);
         if (!validationResult.success) {
             return res.status(400).json({
@@ -78,6 +81,7 @@ exports.synchronicityRoutes.post('/', async (req, res) => {
         const data = validationResult.data;
         const synchronicity = await prisma_1.prisma.synchronicity.create({
             data: {
+                userId,
                 date: data.date ? new Date(data.date) : null,
                 type: data.type,
                 description: data.description,
@@ -94,8 +98,9 @@ exports.synchronicityRoutes.post('/', async (req, res) => {
 // PUT /api/synchronicities/:id - Update synchronicity
 exports.synchronicityRoutes.put('/:id', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { id } = req.params;
-        const existingSynchronicity = await prisma_1.prisma.synchronicity.findUnique({ where: { id } });
+        const existingSynchronicity = await prisma_1.prisma.synchronicity.findUnique({ where: { id, userId } });
         if (!existingSynchronicity) {
             return res.status(404).json({ error: 'Synchronicity not found' });
         }
@@ -125,8 +130,9 @@ exports.synchronicityRoutes.put('/:id', async (req, res) => {
 // DELETE /api/synchronicities/:id - Delete synchronicity (hard delete)
 exports.synchronicityRoutes.delete('/:id', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { id } = req.params;
-        const existingSynchronicity = await prisma_1.prisma.synchronicity.findUnique({ where: { id } });
+        const existingSynchronicity = await prisma_1.prisma.synchronicity.findUnique({ where: { id, userId } });
         if (!existingSynchronicity) {
             return res.status(404).json({ error: 'Synchronicity not found' });
         }

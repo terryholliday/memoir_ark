@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
+const cookie_parser_1 = __importDefault(require("cookie-parser"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const events_1 = require("./routes/events");
 const chapters_1 = require("./routes/chapters");
@@ -36,9 +37,25 @@ dotenv_1.default.config();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 3001;
 // Middleware
-app.use((0, cors_1.default)());
+const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173').split(',').map(o => o.trim()).filter(Boolean);
+app.use((0, cors_1.default)({
+    origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin)) {
+            return callback(null, true);
+        }
+        return callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+}));
 app.use(express_1.default.json());
+app.use((0, cookie_parser_1.default)());
 // Routes
+app.use('/api/auth', auth_1.authRoutes);
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+// Require auth for all remaining API routes
+app.use('/api', auth_1.requireAuth);
 app.use('/api/events', events_1.eventRoutes);
 app.use('/api/chapters', chapters_1.chapterRoutes);
 app.use('/api/trauma-cycles', traumaCycles_1.traumaCycleRoutes);
@@ -62,7 +79,6 @@ app.use('/api/chapters', chapterOrganizer_1.chapterOrganizerRoutes);
 app.use('/api/memoir', memoirExport_1.memoirExportRoutes);
 app.use('/api/ai', ori_1.OriRoutes);
 app.use('/api/cloud', cloudStorage_1.cloudStorageRoutes);
-app.use('/api/auth', auth_1.authRoutes);
 app.use('/api/spotify', spotify_1.spotifyRoutes);
 app.use('/api/insights', insights_1.insightsRoutes);
 // Favicon handler (no favicon, return 204)
@@ -71,10 +87,6 @@ app.get('/favicon.ico', (req, res) => {
 });
 // Chrome DevTools request - return 204 to silence errors
 app.get('/.well-known/appspecific/com.chrome.devtools.json', (req, res) => res.status(204).end());
-// Health check endpoint for Railway
-app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
 app.listen(PORT, () => {
     console.log(`🚀 Origins server running at http://localhost:${PORT}`);
 });

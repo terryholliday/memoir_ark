@@ -7,7 +7,9 @@ exports.songRoutes = (0, express_1.Router)();
 // GET /api/songs - List all songs
 exports.songRoutes.get('/', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const songs = await prisma_1.prisma.song.findMany({
+            where: { userId },
             orderBy: { title: 'asc' },
         });
         res.json(songs);
@@ -20,9 +22,10 @@ exports.songRoutes.get('/', async (req, res) => {
 // GET /api/songs/:id - Get single song
 exports.songRoutes.get('/:id', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { id } = req.params;
         const song = await prisma_1.prisma.song.findUnique({
-            where: { id },
+            where: { id, userId },
             include: {
                 eventLinks: {
                     include: { event: true },
@@ -45,12 +48,14 @@ exports.songRoutes.get('/:id', async (req, res) => {
 // POST /api/songs - Create song
 exports.songRoutes.post('/', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { title, artist, era, keyLyric, notes } = req.body;
         if (!title || !artist) {
             return res.status(400).json({ error: 'Title and artist are required' });
         }
         const song = await prisma_1.prisma.song.create({
             data: {
+                userId,
                 title,
                 artist,
                 era: era || '',
@@ -68,8 +73,12 @@ exports.songRoutes.post('/', async (req, res) => {
 // PUT /api/songs/:id - Update song
 exports.songRoutes.put('/:id', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { id } = req.params;
         const { title, artist, era, keyLyric, notes } = req.body;
+        const existing = await prisma_1.prisma.song.findUnique({ where: { id, userId } });
+        if (!existing)
+            return res.status(404).json({ error: 'Song not found' });
         const updateData = {};
         if (title !== undefined)
             updateData.title = title;
@@ -95,7 +104,11 @@ exports.songRoutes.put('/:id', async (req, res) => {
 // DELETE /api/songs/:id - Delete song
 exports.songRoutes.delete('/:id', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { id } = req.params;
+        const existing = await prisma_1.prisma.song.findUnique({ where: { id, userId } });
+        if (!existing)
+            return res.status(404).json({ error: 'Song not found' });
         await prisma_1.prisma.song.delete({
             where: { id },
         });

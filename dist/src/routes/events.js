@@ -4,7 +4,10 @@ exports.eventRoutes = void 0;
 const express_1 = require("express");
 const zod_1 = require("zod");
 const prisma_1 = require("../lib/prisma");
+const auth_1 = require("./auth");
 exports.eventRoutes = (0, express_1.Router)();
+// Apply auth middleware to all routes in this router
+exports.eventRoutes.use(auth_1.requireAuth);
 const eventCreateSchema = zod_1.z.object({
     title: zod_1.z.string().min(1, 'Title is required'),
     date: zod_1.z.string().datetime().nullable().optional(),
@@ -21,8 +24,9 @@ const eventUpdateSchema = eventCreateSchema.partial();
 // GET /api/events - List events with optional filtering
 exports.eventRoutes.get('/', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { chapterId, traumaCycleId, startDate, endDate } = req.query;
-        const where = {};
+        const where = { userId };
         if (chapterId && typeof chapterId === 'string') {
             where.chapterId = chapterId;
         }
@@ -69,9 +73,10 @@ exports.eventRoutes.get('/', async (req, res) => {
 // GET /api/events/:id - Get single event with all linked entities
 exports.eventRoutes.get('/:id', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { id } = req.params;
         const event = await prisma_1.prisma.event.findUnique({
-            where: { id },
+            where: { id, userId },
             include: {
                 chapter: true,
                 traumaCycle: true,
@@ -111,6 +116,7 @@ exports.eventRoutes.get('/:id', async (req, res) => {
 // POST /api/events - Create event
 exports.eventRoutes.post('/', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const validationResult = eventCreateSchema.safeParse(req.body);
         if (!validationResult.success) {
             return res.status(400).json({
@@ -121,6 +127,7 @@ exports.eventRoutes.post('/', async (req, res) => {
         const data = validationResult.data;
         const event = await prisma_1.prisma.event.create({
             data: {
+                userId,
                 title: data.title,
                 date: data.date ? new Date(data.date) : null,
                 time: data.time ?? null,
@@ -150,8 +157,9 @@ exports.eventRoutes.post('/', async (req, res) => {
 // PUT /api/events/:id - Update event
 exports.eventRoutes.put('/:id', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { id } = req.params;
-        const existingEvent = await prisma_1.prisma.event.findUnique({ where: { id } });
+        const existingEvent = await prisma_1.prisma.event.findUnique({ where: { id, userId } });
         if (!existingEvent) {
             return res.status(404).json({ error: 'Event not found' });
         }
@@ -201,8 +209,9 @@ exports.eventRoutes.put('/:id', async (req, res) => {
 // DELETE /api/events/:id - Delete event (hard delete)
 exports.eventRoutes.delete('/:id', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { id } = req.params;
-        const existingEvent = await prisma_1.prisma.event.findUnique({ where: { id } });
+        const existingEvent = await prisma_1.prisma.event.findUnique({ where: { id, userId } });
         if (!existingEvent) {
             return res.status(404).json({ error: 'Event not found' });
         }

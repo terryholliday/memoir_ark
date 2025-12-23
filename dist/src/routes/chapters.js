@@ -7,7 +7,9 @@ exports.chapterRoutes = (0, express_1.Router)();
 // GET /api/chapters - List all chapters
 exports.chapterRoutes.get('/', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const chapters = await prisma_1.prisma.chapter.findMany({
+            where: { userId },
             orderBy: { number: 'asc' },
         });
         const chaptersWithParsedYears = chapters.map((chapter) => ({
@@ -24,9 +26,10 @@ exports.chapterRoutes.get('/', async (req, res) => {
 // GET /api/chapters/:id - Get single chapter
 exports.chapterRoutes.get('/:id', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { id } = req.params;
         const chapter = await prisma_1.prisma.chapter.findUnique({
-            where: { id },
+            where: { id, userId },
             include: {
                 events: true,
             },
@@ -47,12 +50,14 @@ exports.chapterRoutes.get('/:id', async (req, res) => {
 // POST /api/chapters - Create chapter
 exports.chapterRoutes.post('/', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { number, title, yearsCovered, summary } = req.body;
         if (!number || !title) {
             return res.status(400).json({ error: 'Number and title are required' });
         }
         const chapter = await prisma_1.prisma.chapter.create({
             data: {
+                userId,
                 number,
                 title,
                 yearsCovered: JSON.stringify(yearsCovered || []),
@@ -72,8 +77,13 @@ exports.chapterRoutes.post('/', async (req, res) => {
 // PUT /api/chapters/:id - Update chapter
 exports.chapterRoutes.put('/:id', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { id } = req.params;
         const { number, title, yearsCovered, summary } = req.body;
+        // Verify ownership
+        const existing = await prisma_1.prisma.chapter.findUnique({ where: { id, userId } });
+        if (!existing)
+            return res.status(404).json({ error: 'Chapter not found' });
         const updateData = {};
         if (number !== undefined)
             updateData.number = number;
@@ -100,7 +110,12 @@ exports.chapterRoutes.put('/:id', async (req, res) => {
 // DELETE /api/chapters/:id - Delete chapter
 exports.chapterRoutes.delete('/:id', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { id } = req.params;
+        // Verify ownership
+        const existing = await prisma_1.prisma.chapter.findUnique({ where: { id, userId } });
+        if (!existing)
+            return res.status(404).json({ error: 'Chapter not found' });
         await prisma_1.prisma.chapter.delete({
             where: { id },
         });

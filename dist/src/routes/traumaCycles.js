@@ -7,7 +7,9 @@ exports.traumaCycleRoutes = (0, express_1.Router)();
 // GET /api/trauma-cycles - List all trauma cycles
 exports.traumaCycleRoutes.get('/', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const traumaCycles = await prisma_1.prisma.traumaCycle.findMany({
+            where: { userId },
             orderBy: { startYear: 'asc' },
         });
         res.json(traumaCycles);
@@ -20,9 +22,10 @@ exports.traumaCycleRoutes.get('/', async (req, res) => {
 // GET /api/trauma-cycles/:id - Get single trauma cycle
 exports.traumaCycleRoutes.get('/:id', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { id } = req.params;
         const traumaCycle = await prisma_1.prisma.traumaCycle.findUnique({
-            where: { id },
+            where: { id, userId },
             include: {
                 events: true,
             },
@@ -40,12 +43,14 @@ exports.traumaCycleRoutes.get('/:id', async (req, res) => {
 // POST /api/trauma-cycles - Create trauma cycle
 exports.traumaCycleRoutes.post('/', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { label, startYear, endYear, description } = req.body;
         if (!label) {
             return res.status(400).json({ error: 'Label is required' });
         }
         const traumaCycle = await prisma_1.prisma.traumaCycle.create({
             data: {
+                userId,
                 label,
                 startYear: startYear || null,
                 endYear: endYear || null,
@@ -62,8 +67,12 @@ exports.traumaCycleRoutes.post('/', async (req, res) => {
 // PUT /api/trauma-cycles/:id - Update trauma cycle
 exports.traumaCycleRoutes.put('/:id', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { id } = req.params;
         const { label, startYear, endYear, description } = req.body;
+        const existing = await prisma_1.prisma.traumaCycle.findUnique({ where: { id, userId } });
+        if (!existing)
+            return res.status(404).json({ error: 'Trauma cycle not found' });
         const updateData = {};
         if (label !== undefined)
             updateData.label = label;
@@ -87,7 +96,11 @@ exports.traumaCycleRoutes.put('/:id', async (req, res) => {
 // DELETE /api/trauma-cycles/:id - Delete trauma cycle
 exports.traumaCycleRoutes.delete('/:id', async (req, res) => {
     try {
+        const userId = req.authUser.uid;
         const { id } = req.params;
+        const existing = await prisma_1.prisma.traumaCycle.findUnique({ where: { id, userId } });
+        if (!existing)
+            return res.status(404).json({ error: 'Trauma cycle not found' });
         await prisma_1.prisma.traumaCycle.delete({
             where: { id },
         });
