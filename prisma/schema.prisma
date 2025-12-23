@@ -30,9 +30,24 @@ model User {
   synchronicities Synchronicity[]
   tags          Tag[]
   collections   Collection[]
+  cloudTokens   CloudToken[]
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+model CloudToken {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider     String
+  accessToken  String?
+  refreshToken String?
+  expiresAt    DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, provider])
 }
 
 model Chapter {
