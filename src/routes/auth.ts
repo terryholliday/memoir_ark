@@ -11,13 +11,33 @@ const prisma = new PrismaClient();
 
 // Firebase Admin (preferred auth path)
 const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID;
+const firebaseHasCredentials = Boolean(
+  process.env.FIREBASE_SERVICE_ACCOUNT ||
+  process.env.GOOGLE_APPLICATION_CREDENTIALS
+);
+
+let firebaseAuth: admin.auth.Auth | null = null;
+
 if (!admin.apps.length && FIREBASE_PROJECT_ID) {
-  admin.initializeApp({
-    credential: admin.credential.applicationDefault(),
-    projectId: FIREBASE_PROJECT_ID,
-  });
+  try {
+    const credential = process.env.FIREBASE_SERVICE_ACCOUNT
+      ? admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT) as admin.ServiceAccount)
+      : admin.credential.applicationDefault();
+
+    admin.initializeApp({
+      credential,
+      projectId: FIREBASE_PROJECT_ID,
+    });
+    firebaseAuth = admin.auth();
+    if (!firebaseHasCredentials) {
+      console.info('Firebase initialized using Application Default Credentials.');
+    }
+  } catch (err) {
+    console.error('Firebase initialization failed; skipping Firebase auth and falling back to legacy token auth.', err);
+  }
+} else if (admin.apps.length) {
+  firebaseAuth = admin.auth();
 }
-const firebaseAuth = admin.apps.length ? admin.auth() : null;
 
 // JWT Config
 const JWT_SECRET = process.env.JWT_SECRET;
