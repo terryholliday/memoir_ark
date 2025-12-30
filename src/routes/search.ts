@@ -1,5 +1,6 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { prisma } from '../lib/prisma';
+import { AuthenticatedRequest } from './auth';
 
 export const searchRoutes = Router();
 
@@ -14,8 +15,9 @@ function parseDateRange(dateRange: string): { start: Date; end: Date } | null {
 }
 
 // GET /api/search - Full-text search across all entities with advanced filters
-searchRoutes.get('/', async (req: Request, res: Response) => {
+searchRoutes.get('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const { q, type, chapterId, traumaCycleId, personId, tagId, dateRange } = req.query;
     const searchIn = req.query.in as string | undefined;
 
@@ -82,6 +84,7 @@ searchRoutes.get('/', async (req: Request, res: Response) => {
           AND: [
             { OR: textConditions },
             filterConditions,
+            { userId },
           ],
         },
         include: {
@@ -105,6 +108,7 @@ searchRoutes.get('/', async (req: Request, res: Response) => {
     if (!searchType || searchType === 'persons') {
       const persons = await prisma.person.findMany({
         where: {
+          userId,
           OR: [
             { name: { contains: query } },
             { role: { contains: query } },
@@ -124,6 +128,7 @@ searchRoutes.get('/', async (req: Request, res: Response) => {
     if (!searchType || searchType === 'artifacts') {
       const artifacts = await prisma.artifact.findMany({
         where: {
+          userId,
           OR: [
             { type: { contains: query } },
             { shortDescription: { contains: query } },
@@ -144,6 +149,7 @@ searchRoutes.get('/', async (req: Request, res: Response) => {
     if (!searchType || searchType === 'synchronicities') {
       const synchronicities = await prisma.synchronicity.findMany({
         where: {
+          userId,
           OR: [
             { type: { contains: query } },
             { description: { contains: query } },
@@ -162,6 +168,7 @@ searchRoutes.get('/', async (req: Request, res: Response) => {
     if (!searchType || searchType === 'chapters') {
       const chapters = await prisma.chapter.findMany({
         where: {
+          userId,
           OR: [
             { title: { contains: query } },
             { summary: { contains: query } },
@@ -176,6 +183,7 @@ searchRoutes.get('/', async (req: Request, res: Response) => {
     if (!searchType || searchType === 'songs') {
       const songs = await prisma.song.findMany({
         where: {
+          userId,
           OR: [
             { title: { contains: query } },
             { artist: { contains: query } },
@@ -208,8 +216,9 @@ searchRoutes.get('/', async (req: Request, res: Response) => {
 });
 
 // POST /api/search/filter - Structured multi-filter search
-searchRoutes.post('/filter', async (req: Request, res: Response) => {
+searchRoutes.post('/filter', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const {
       text,
       searchIn,
@@ -226,6 +235,7 @@ searchRoutes.post('/filter', async (req: Request, res: Response) => {
 
     // Build where clause
     const where: any = {};
+    where.userId = userId;
 
     // Text search
     if (text && typeof text === 'string' && text.length >= 2) {

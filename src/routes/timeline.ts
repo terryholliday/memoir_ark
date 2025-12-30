@@ -1,15 +1,18 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { prisma } from '../lib/prisma';
+import { AuthenticatedRequest } from './auth';
 
 export const timelineRoutes = Router();
 
 // GET /api/timeline - Get all events in chronological order with related data
-timelineRoutes.get('/', async (req: Request, res: Response) => {
+timelineRoutes.get('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const { startYear, endYear, chapterId, traumaCycleId } = req.query;
 
     const where: any = {
       date: { not: null },
+      userId,
     };
 
     if (startYear && typeof startYear === 'string') {

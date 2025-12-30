@@ -1,6 +1,7 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import OpenAI from 'openai';
+import { AuthenticatedRequest } from './auth';
 
 export const insightsRoutes = Router();
 
@@ -9,8 +10,9 @@ const openai = new OpenAI({
 });
 
 // GET /api/insights/this-day - Get "This Day in Your Life" memories
-insightsRoutes.get('/this-day', async (req: Request, res: Response) => {
+insightsRoutes.get('/this-day', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const today = new Date();
     const month = today.getMonth() + 1;
     const day = today.getDate();
@@ -21,6 +23,7 @@ insightsRoutes.get('/this-day', async (req: Request, res: Response) => {
         date: {
           not: null,
         },
+        userId,
       },
       include: {
         personLinks: {
@@ -93,10 +96,12 @@ insightsRoutes.get('/this-day', async (req: Request, res: Response) => {
 });
 
 // GET /api/insights/life-themes - Analyze life themes and patterns
-insightsRoutes.get('/life-themes', async (req: Request, res: Response) => {
+insightsRoutes.get('/life-themes', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     // Get all events with their tags and emotions
     const events = await prisma.event.findMany({
+      where: { userId },
       include: {
         personLinks: { include: { person: true } },
         tagLinks: { include: { tag: true } },
@@ -217,8 +222,9 @@ Respond in JSON format: { "themes": ["theme1", "theme2"], "patterns": ["pattern1
 });
 
 // POST /api/insights/legacy-letter - Generate a legacy letter
-insightsRoutes.post('/legacy-letter', async (req: Request, res: Response) => {
+insightsRoutes.post('/legacy-letter', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const { recipient, relationship, tone, includeThemes } = req.body;
 
     if (!recipient || !relationship) {
@@ -227,7 +233,7 @@ insightsRoutes.post('/legacy-letter', async (req: Request, res: Response) => {
 
     // Get user's events and life data
     const events = await prisma.event.findMany({
-      where: { isKeystone: true },
+      where: { isKeystone: true, userId },
       include: {
         personLinks: { include: { person: true } },
       },
@@ -236,11 +242,12 @@ insightsRoutes.post('/legacy-letter', async (req: Request, res: Response) => {
     });
 
     const chapters = await prisma.chapter.findMany({
+      where: { userId },
       orderBy: { number: 'asc' },
     });
 
     const people = await prisma.person.findMany({
-      where: { isPrimary: true },
+      where: { isPrimary: true, userId },
     });
 
     if (!process.env.OPENAI_API_KEY) {
@@ -306,10 +313,12 @@ The letter should be 400-600 words.`,
 });
 
 // GET /api/insights/streak - Get memory streak data
-insightsRoutes.get('/streak', async (req: Request, res: Response) => {
+insightsRoutes.get('/streak', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     // Get all events grouped by creation date
     const events = await prisma.event.findMany({
+      where: { userId },
       select: {
         createdAt: true,
       },
@@ -420,15 +429,17 @@ insightsRoutes.get('/streak', async (req: Request, res: Response) => {
 });
 
 // POST /api/insights/voice-memoir - Generate audio narration (placeholder for TTS)
-insightsRoutes.post('/voice-memoir', async (req: Request, res: Response) => {
+insightsRoutes.post('/voice-memoir', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const { chapterId, voiceStyle } = req.body;
 
     // Get chapter content
     const chapter = await prisma.chapter.findUnique({
-      where: { id: chapterId },
+      where: { id: chapterId, userId },
       include: {
         events: {
+          where: { userId },
           orderBy: { date: 'asc' },
           include: {
             personLinks: { include: { person: true } },

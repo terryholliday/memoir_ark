@@ -1,18 +1,21 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { prisma } from '../lib/prisma';
+import { AuthenticatedRequest } from './auth';
 
 export const exportRoutes = Router();
 
 // GET /api/export/json - Export all data as JSON
-exportRoutes.get('/json', async (req: Request, res: Response) => {
+exportRoutes.get('/json', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const [chapters, persons, songs, traumaCycles, events, artifacts, synchronicities] =
       await Promise.all([
-        prisma.chapter.findMany({ orderBy: { number: 'asc' } }),
-        prisma.person.findMany({ orderBy: { name: 'asc' } }),
-        prisma.song.findMany({ orderBy: { title: 'asc' } }),
-        prisma.traumaCycle.findMany({ orderBy: { startYear: 'asc' } }),
+        prisma.chapter.findMany({ where: { userId }, orderBy: { number: 'asc' } }),
+        prisma.person.findMany({ where: { userId }, orderBy: { name: 'asc' } }),
+        prisma.song.findMany({ where: { userId }, orderBy: { title: 'asc' } }),
+        prisma.traumaCycle.findMany({ where: { userId }, orderBy: { startYear: 'asc' } }),
         prisma.event.findMany({
+          where: { userId },
           include: {
             chapter: true,
             traumaCycle: true,
@@ -24,12 +27,13 @@ exportRoutes.get('/json', async (req: Request, res: Response) => {
           orderBy: { date: 'asc' },
         }),
         prisma.artifact.findMany({
+          where: { userId },
           include: {
             personLinks: { include: { person: true } },
           },
           orderBy: { createdAt: 'desc' },
         }),
-        prisma.synchronicity.findMany({ orderBy: { date: 'desc' } }),
+        prisma.synchronicity.findMany({ where: { userId }, orderBy: { date: 'desc' } }),
       ]);
 
     const exportData = {
@@ -69,11 +73,14 @@ exportRoutes.get('/json', async (req: Request, res: Response) => {
 });
 
 // GET /api/export/markdown - Export as Markdown memoir draft
-exportRoutes.get('/markdown', async (req: Request, res: Response) => {
+exportRoutes.get('/markdown', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const chapters = await prisma.chapter.findMany({
+      where: { userId },
       include: {
         events: {
+          where: { userId },
           include: {
             traumaCycle: true,
             personLinks: { include: { person: true } },
@@ -175,8 +182,9 @@ exportRoutes.get('/markdown', async (req: Request, res: Response) => {
 });
 
 // GET /api/export/stats - Get export statistics
-exportRoutes.get('/stats', async (req: Request, res: Response) => {
+exportRoutes.get('/stats', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const [
       eventCount,
       personCount,
@@ -187,25 +195,25 @@ exportRoutes.get('/stats', async (req: Request, res: Response) => {
       eventWithDateCount,
       keystoneCount,
     ] = await Promise.all([
-      prisma.event.count(),
-      prisma.person.count(),
-      prisma.artifact.count(),
-      prisma.synchronicity.count(),
-      prisma.chapter.count(),
-      prisma.song.count(),
-      prisma.event.count({ where: { date: { not: null } } }),
-      prisma.event.count({ where: { isKeystone: true } }),
+      prisma.event.count({ where: { userId } }),
+      prisma.person.count({ where: { userId } }),
+      prisma.artifact.count({ where: { userId } }),
+      prisma.synchronicity.count({ where: { userId } }),
+      prisma.chapter.count({ where: { userId } }),
+      prisma.song.count({ where: { userId } }),
+      prisma.event.count({ where: { userId, date: { not: null } } }),
+      prisma.event.count({ where: { userId, isKeystone: true } }),
     ]);
 
     // Get date range of events
     const [earliestEvent, latestEvent] = await Promise.all([
       prisma.event.findFirst({
-        where: { date: { not: null } },
+        where: { userId, date: { not: null } },
         orderBy: { date: 'asc' },
         select: { date: true },
       }),
       prisma.event.findFirst({
-        where: { date: { not: null } },
+        where: { userId, date: { not: null } },
         orderBy: { date: 'desc' },
         select: { date: true },
       }),

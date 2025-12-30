@@ -1,11 +1,13 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { prisma } from '../lib/prisma';
+import { AuthenticatedRequest } from './auth';
 
 export const statsRoutes = Router();
 
 // GET /api/stats - Get counts for dashboard
-statsRoutes.get('/', async (req: Request, res: Response) => {
+statsRoutes.get('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const [
       eventsCount,
       chaptersCount,
@@ -15,13 +17,13 @@ statsRoutes.get('/', async (req: Request, res: Response) => {
       artifactsCount,
       synchronicitiesCount,
     ] = await Promise.all([
-      prisma.event.count(),
-      prisma.chapter.count(),
-      prisma.traumaCycle.count(),
-      prisma.song.count(),
-      prisma.person.count(),
-      prisma.artifact.count(),
-      prisma.synchronicity.count(),
+      prisma.event.count({ where: { userId } }),
+      prisma.chapter.count({ where: { userId } }),
+      prisma.traumaCycle.count({ where: { userId } }),
+      prisma.song.count({ where: { userId } }),
+      prisma.person.count({ where: { userId } }),
+      prisma.artifact.count({ where: { userId } }),
+      prisma.synchronicity.count({ where: { userId } }),
     ]);
 
     res.json({
