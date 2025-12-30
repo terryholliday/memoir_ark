@@ -1,14 +1,18 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { prisma } from '../lib/prisma';
+import { AuthenticatedRequest } from './auth';
 
 export const narrativeRoutes = Router();
 
 // GET /api/narrative/chapters - Get all chapters with their events for narrative view
-narrativeRoutes.get('/chapters', async (req: Request, res: Response) => {
+narrativeRoutes.get('/chapters', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const chapters = await prisma.chapter.findMany({
+      where: { userId },
       include: {
         events: {
+          where: { userId },
           include: {
             traumaCycle: true,
             personLinks: {
@@ -65,14 +69,16 @@ narrativeRoutes.get('/chapters', async (req: Request, res: Response) => {
 });
 
 // GET /api/narrative/chapters/:id - Get single chapter narrative view
-narrativeRoutes.get('/chapters/:id', async (req: Request, res: Response) => {
+narrativeRoutes.get('/chapters/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const { id } = req.params;
 
     const chapter = await prisma.chapter.findUnique({
-      where: { id },
+      where: { id, userId },
       include: {
         events: {
+          where: { userId },
           include: {
             traumaCycle: true,
             personLinks: {
@@ -100,11 +106,11 @@ narrativeRoutes.get('/chapters/:id', async (req: Request, res: Response) => {
     // Get adjacent chapters for navigation
     const [prevChapter, nextChapter] = await Promise.all([
       prisma.chapter.findFirst({
-        where: { number: chapter.number - 1 },
+        where: { number: chapter.number - 1, userId },
         select: { id: true, number: true, title: true },
       }),
       prisma.chapter.findFirst({
-        where: { number: chapter.number + 1 },
+        where: { number: chapter.number + 1, userId },
         select: { id: true, number: true, title: true },
       }),
     ]);

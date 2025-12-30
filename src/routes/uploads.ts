@@ -6,6 +6,7 @@ import AdmZip from 'adm-zip';
 import sanitize from 'sanitize-filename';
 import { prisma } from '../lib/prisma';
 import { extractContent } from '../services/contentExtractor';
+import { AuthenticatedRequest } from './auth';
 
 import { uploadLimiter } from '../middleware/rateLimit';
 
@@ -178,9 +179,19 @@ const uploadBulk = multer({
   },
 });
 
+const isSafeFilename = (filename: string) => {
+  const safeFilename = sanitize(filename);
+  if (safeFilename !== filename) return false;
+  if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+    return false;
+  }
+  return true;
+};
+
 // POST /api/uploads/audio - Upload audio file and create artifact
-uploadRoutes.post('/audio', upload.single('audio'), async (req: Request, res: Response) => {
+uploadRoutes.post('/audio', upload.single('audio'), async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     if (!req.file) {
       return res.status(400).json({ error: 'No audio file provided' });
     }
@@ -190,6 +201,7 @@ uploadRoutes.post('/audio', upload.single('audio'), async (req: Request, res: Re
     // Create artifact record
     const artifact = await prisma.artifact.create({
       data: {
+        userId,
         type: 'audio',
         sourceSystem: sourceSystem || 'upload',
         sourcePathOrUrl: `/uploads/${req.file.filename}`,
@@ -204,7 +216,7 @@ uploadRoutes.post('/audio', upload.single('audio'), async (req: Request, res: Re
 
     // Check AI Consent
     const user = await prisma.user.findUnique({
-      where: { id: (req as any).authUser.uid },
+      where: { id: userId },
       select: { aiConsent: true }
     });
 
@@ -242,8 +254,9 @@ uploadRoutes.post('/audio', upload.single('audio'), async (req: Request, res: Re
 });
 
 // POST /api/uploads/audio/batch - Upload multiple audio files
-uploadRoutes.post('/audio/batch', upload.array('audio', 50), async (req: Request, res: Response) => {
+uploadRoutes.post('/audio/batch', upload.array('audio', 50), async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const files = req.files as Express.Multer.File[];
     if (!files || files.length === 0) {
       return res.status(400).json({ error: 'No audio files provided' });
@@ -255,6 +268,7 @@ uploadRoutes.post('/audio/batch', upload.array('audio', 50), async (req: Request
     for (const file of files) {
       const artifact = await prisma.artifact.create({
         data: {
+          userId,
           type: 'audio',
           sourceSystem: sourceSystem || 'upload',
           sourcePathOrUrl: `/uploads/${file.filename}`,
@@ -275,22 +289,23 @@ uploadRoutes.post('/audio/batch', upload.array('audio', 50), async (req: Request
   }
 });
 
-import sanitize from 'sanitize-filename';
-// ... imports
-
-// ...
-
 // GET /api/uploads/:filename - Serve uploaded file
-uploadRoutes.get('/:filename', (req: Request, res: Response) => {
+uploadRoutes.get('/:filename', async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.authUser!.uid;
   const { filename } = req.params;
-  const safeFilename = sanitize(filename);
 
   // Prevent path traversal double check (sanitize should handle it, but good to be explicit)
-  if (safeFilename !== filename || filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+  if (!isSafeFilename(filename)) {
     return res.status(400).json({ error: 'Invalid filename' });
   }
 
-  const filePath = path.join(uploadsDir, safeFilename);
+  const filePath = path.join(uploadsDir, filename);
+  const artifact = await prisma.artifact.findFirst({
+    where: { userId, sourcePathOrUrl: `/uploads/${filename}` },
+  });
+  if (!artifact) {
+    return res.status(404).json({ error: 'File not found' });
+  }
 
   if (!fs.existsSync(filePath)) {
     return res.status(404).json({ error: 'File not found' });
@@ -300,16 +315,22 @@ uploadRoutes.get('/:filename', (req: Request, res: Response) => {
 });
 
 // DELETE /api/uploads/:filename - Delete uploaded file
-uploadRoutes.delete('/:filename', async (req: Request, res: Response) => {
+uploadRoutes.delete('/:filename', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const { filename } = req.params;
-    const safeFilename = sanitize(filename);
 
-    if (safeFilename !== filename) {
+    if (!isSafeFilename(filename)) {
       return res.status(400).json({ error: 'Invalid filename' });
     }
 
-    const filePath = path.join(uploadsDir, safeFilename);
+    const filePath = path.join(uploadsDir, filename);
+    const artifact = await prisma.artifact.findFirst({
+      where: { userId, sourcePathOrUrl: `/uploads/${filename}` },
+    });
+    if (!artifact) {
+      return res.status(404).json({ error: 'File not found' });
+    }
 
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
@@ -322,8 +343,9 @@ uploadRoutes.delete('/:filename', async (req: Request, res: Response) => {
 });
 
 // POST /api/uploads/image - Upload image and create artifact (alias for /photo)
-uploadRoutes.post('/image', uploadImage.single('image'), async (req: Request, res: Response) => {
+uploadRoutes.post('/image', uploadImage.single('image'), async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     if (!req.file) {
       return res.status(400).json({ error: 'No image provided' });
     }
@@ -333,6 +355,7 @@ uploadRoutes.post('/image', uploadImage.single('image'), async (req: Request, re
 
     const artifact = await prisma.artifact.create({
       data: {
+        userId,
         type: 'photo',
         sourceSystem: sourceSystem || 'upload',
         sourcePathOrUrl: `/uploads/images/${req.file.filename}`,
@@ -349,7 +372,7 @@ uploadRoutes.post('/image', uploadImage.single('image'), async (req: Request, re
 
     // Check AI Consent
     const user = await prisma.user.findUnique({
-      where: { id: (req as any).authUser.uid },
+      where: { id: userId },
       select: { aiConsent: true }
     });
 
@@ -392,8 +415,9 @@ uploadRoutes.post('/image', uploadImage.single('image'), async (req: Request, re
 });
 
 // POST /api/uploads/document - Upload document (PDF, text) and extract content
-uploadRoutes.post('/document', uploadDocument.single('document'), async (req: Request, res: Response) => {
+uploadRoutes.post('/document', uploadDocument.single('document'), async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     if (!req.file) {
       return res.status(400).json({ error: 'No document provided' });
     }
@@ -410,6 +434,7 @@ uploadRoutes.post('/document', uploadDocument.single('document'), async (req: Re
 
     const artifact = await prisma.artifact.create({
       data: {
+        userId,
         type: docType,
         sourceSystem: sourceSystem || 'upload',
         sourcePathOrUrl: `/uploads/documents/${req.file.filename}`,
@@ -424,7 +449,7 @@ uploadRoutes.post('/document', uploadDocument.single('document'), async (req: Re
 
     // Check AI Consent
     const user = await prisma.user.findUnique({
-      where: { id: (req as any).authUser.uid },
+      where: { id: userId },
       select: { aiConsent: true }
     });
 
@@ -528,8 +553,9 @@ uploadRoutes.post('/document', uploadDocument.single('document'), async (req: Re
 });
 
 // POST /api/uploads/photo - Upload photo and create artifact
-uploadRoutes.post('/photo', uploadImage.single('photo'), async (req: Request, res: Response) => {
+uploadRoutes.post('/photo', uploadImage.single('photo'), async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     if (!req.file) {
       return res.status(400).json({ error: 'No photo provided' });
     }
@@ -539,6 +565,7 @@ uploadRoutes.post('/photo', uploadImage.single('photo'), async (req: Request, re
     // Create artifact record
     const artifact = await prisma.artifact.create({
       data: {
+        userId,
         type: 'photo',
         sourceSystem: sourceSystem || 'upload',
         sourcePathOrUrl: `/uploads/images/${req.file.filename}`,
@@ -568,8 +595,9 @@ uploadRoutes.post('/photo', uploadImage.single('photo'), async (req: Request, re
 });
 
 // POST /api/uploads/photo/analyze - AI analysis of uploaded photo
-uploadRoutes.post('/photo/analyze', async (req: Request, res: Response) => {
+uploadRoutes.post('/photo/analyze', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const { artifactId, imageUrl } = req.body;
 
     if (!artifactId && !imageUrl) {
@@ -578,7 +606,7 @@ uploadRoutes.post('/photo/analyze', async (req: Request, res: Response) => {
 
     let imagePath = imageUrl;
     if (artifactId) {
-      const artifact = await prisma.artifact.findUnique({ where: { id: artifactId } });
+      const artifact = await prisma.artifact.findUnique({ where: { id: artifactId, userId } });
       if (!artifact) {
         return res.status(404).json({ error: 'Artifact not found' });
       }
@@ -611,10 +639,20 @@ uploadRoutes.post('/photo/analyze', async (req: Request, res: Response) => {
 });
 
 // GET /api/uploads/documents/:filename - Serve uploaded document
-uploadRoutes.get('/documents/:filename', (req: Request, res: Response) => {
+uploadRoutes.get('/documents/:filename', async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.authUser!.uid;
   const { filename } = req.params;
+  if (!isSafeFilename(filename)) {
+    return res.status(400).json({ error: 'Invalid filename' });
+  }
   const docsDir = path.join(uploadsDir, 'documents');
   const filePath = path.join(docsDir, filename);
+  const artifact = await prisma.artifact.findFirst({
+    where: { userId, sourcePathOrUrl: `/uploads/documents/${filename}` },
+  });
+  if (!artifact) {
+    return res.status(404).json({ error: 'Document not found' });
+  }
 
   if (!fs.existsSync(filePath)) {
     return res.status(404).json({ error: 'Document not found' });
@@ -624,10 +662,20 @@ uploadRoutes.get('/documents/:filename', (req: Request, res: Response) => {
 });
 
 // GET /api/uploads/images/:filename - Serve uploaded image
-uploadRoutes.get('/images/:filename', (req: Request, res: Response) => {
+uploadRoutes.get('/images/:filename', async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.authUser!.uid;
   const { filename } = req.params;
+  if (!isSafeFilename(filename)) {
+    return res.status(400).json({ error: 'Invalid filename' });
+  }
   const imagesDir = path.join(uploadsDir, 'images');
   const filePath = path.join(imagesDir, filename);
+  const artifact = await prisma.artifact.findFirst({
+    where: { userId, sourcePathOrUrl: `/uploads/images/${filename}` },
+  });
+  if (!artifact) {
+    return res.status(404).json({ error: 'Image not found' });
+  }
 
   if (!fs.existsSync(filePath)) {
     return res.status(404).json({ error: 'Image not found' });
@@ -665,8 +713,9 @@ function getMimeTypeFromExt(filename: string): string {
 }
 
 // POST /api/uploads/bulk - Upload multiple files or a ZIP archive
-uploadRoutes.post('/bulk', uploadBulk.array('files', 100), async (req: Request, res: Response) => {
+uploadRoutes.post('/bulk', uploadBulk.array('files', 100), async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const files = req.files as Express.Multer.File[];
     if (!files || files.length === 0) {
       return res.status(400).json({ error: 'No files provided' });
@@ -735,6 +784,7 @@ uploadRoutes.post('/bulk', uploadBulk.array('files', 100), async (req: Request, 
             try {
               const artifact = await prisma.artifact.create({
                 data: {
+                  userId,
                   type: artifactType,
                   sourceSystem: sourceSystem || 'bulk-upload',
                   sourcePathOrUrl: urlPath,
@@ -802,6 +852,7 @@ uploadRoutes.post('/bulk', uploadBulk.array('files', 100), async (req: Request, 
         try {
           const artifact = await prisma.artifact.create({
             data: {
+              userId,
               type: artifactType,
               sourceSystem: sourceSystem || 'bulk-upload',
               sourcePathOrUrl: urlPath,

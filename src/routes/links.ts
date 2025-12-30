@@ -1,5 +1,6 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { prisma } from '../lib/prisma';
+import { AuthenticatedRequest } from './auth';
 
 export const linkRoutes = Router();
 
@@ -8,17 +9,18 @@ export const linkRoutes = Router();
 // ============================================
 
 // POST /api/events/:eventId/persons/:personId - Link person to event
-linkRoutes.post('/events/:eventId/persons/:personId', async (req: Request, res: Response) => {
+linkRoutes.post('/events/:eventId/persons/:personId', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const { eventId, personId } = req.params;
 
     // Verify both entities exist
-    const event = await prisma.event.findUnique({ where: { id: eventId } });
+    const event = await prisma.event.findUnique({ where: { id: eventId, userId } });
     if (!event) {
       return res.status(404).json({ error: 'Event not found' });
     }
 
-    const person = await prisma.person.findUnique({ where: { id: personId } });
+    const person = await prisma.person.findUnique({ where: { id: personId, userId } });
     if (!person) {
       return res.status(404).json({ error: 'Person not found' });
     }
@@ -45,9 +47,16 @@ linkRoutes.post('/events/:eventId/persons/:personId', async (req: Request, res: 
 });
 
 // DELETE /api/events/:eventId/persons/:personId - Unlink person from event
-linkRoutes.delete('/events/:eventId/persons/:personId', async (req: Request, res: Response) => {
+linkRoutes.delete('/events/:eventId/persons/:personId', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const { eventId, personId } = req.params;
+
+    const event = await prisma.event.findUnique({ where: { id: eventId, userId } });
+    const person = await prisma.person.findUnique({ where: { id: personId, userId } });
+    if (!event || !person) {
+      return res.status(404).json({ error: 'Event or person not found' });
+    }
 
     const existingLink = await prisma.eventPerson.findUnique({
       where: { eventId_personId: { eventId, personId } },
@@ -73,16 +82,17 @@ linkRoutes.delete('/events/:eventId/persons/:personId', async (req: Request, res
 // ============================================
 
 // POST /api/events/:eventId/songs/:songId - Link song to event
-linkRoutes.post('/events/:eventId/songs/:songId', async (req: Request, res: Response) => {
+linkRoutes.post('/events/:eventId/songs/:songId', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const { eventId, songId } = req.params;
 
-    const event = await prisma.event.findUnique({ where: { id: eventId } });
+    const event = await prisma.event.findUnique({ where: { id: eventId, userId } });
     if (!event) {
       return res.status(404).json({ error: 'Event not found' });
     }
 
-    const song = await prisma.song.findUnique({ where: { id: songId } });
+    const song = await prisma.song.findUnique({ where: { id: songId, userId } });
     if (!song) {
       return res.status(404).json({ error: 'Song not found' });
     }
@@ -108,9 +118,16 @@ linkRoutes.post('/events/:eventId/songs/:songId', async (req: Request, res: Resp
 });
 
 // DELETE /api/events/:eventId/songs/:songId - Unlink song from event
-linkRoutes.delete('/events/:eventId/songs/:songId', async (req: Request, res: Response) => {
+linkRoutes.delete('/events/:eventId/songs/:songId', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const { eventId, songId } = req.params;
+
+    const event = await prisma.event.findUnique({ where: { id: eventId, userId } });
+    const song = await prisma.song.findUnique({ where: { id: songId, userId } });
+    if (!event || !song) {
+      return res.status(404).json({ error: 'Event or song not found' });
+    }
 
     const existingLink = await prisma.eventSong.findUnique({
       where: { eventId_songId: { eventId, songId } },
@@ -136,16 +153,17 @@ linkRoutes.delete('/events/:eventId/songs/:songId', async (req: Request, res: Re
 // ============================================
 
 // POST /api/events/:eventId/artifacts/:artifactId - Link artifact to event
-linkRoutes.post('/events/:eventId/artifacts/:artifactId', async (req: Request, res: Response) => {
+linkRoutes.post('/events/:eventId/artifacts/:artifactId', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const { eventId, artifactId } = req.params;
 
-    const event = await prisma.event.findUnique({ where: { id: eventId } });
+    const event = await prisma.event.findUnique({ where: { id: eventId, userId } });
     if (!event) {
       return res.status(404).json({ error: 'Event not found' });
     }
 
-    const artifact = await prisma.artifact.findUnique({ where: { id: artifactId } });
+    const artifact = await prisma.artifact.findUnique({ where: { id: artifactId, userId } });
     if (!artifact) {
       return res.status(404).json({ error: 'Artifact not found' });
     }
@@ -171,9 +189,16 @@ linkRoutes.post('/events/:eventId/artifacts/:artifactId', async (req: Request, r
 });
 
 // DELETE /api/events/:eventId/artifacts/:artifactId - Unlink artifact from event
-linkRoutes.delete('/events/:eventId/artifacts/:artifactId', async (req: Request, res: Response) => {
+linkRoutes.delete('/events/:eventId/artifacts/:artifactId', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const { eventId, artifactId } = req.params;
+
+    const event = await prisma.event.findUnique({ where: { id: eventId, userId } });
+    const artifact = await prisma.artifact.findUnique({ where: { id: artifactId, userId } });
+    if (!event || !artifact) {
+      return res.status(404).json({ error: 'Event or artifact not found' });
+    }
 
     const existingLink = await prisma.eventArtifact.findUnique({
       where: { eventId_artifactId: { eventId, artifactId } },
@@ -199,16 +224,17 @@ linkRoutes.delete('/events/:eventId/artifacts/:artifactId', async (req: Request,
 // ============================================
 
 // POST /api/events/:eventId/synchronicities/:synchronicityId - Link synchronicity to event
-linkRoutes.post('/events/:eventId/synchronicities/:synchronicityId', async (req: Request, res: Response) => {
+linkRoutes.post('/events/:eventId/synchronicities/:synchronicityId', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const { eventId, synchronicityId } = req.params;
 
-    const event = await prisma.event.findUnique({ where: { id: eventId } });
+    const event = await prisma.event.findUnique({ where: { id: eventId, userId } });
     if (!event) {
       return res.status(404).json({ error: 'Event not found' });
     }
 
-    const synchronicity = await prisma.synchronicity.findUnique({ where: { id: synchronicityId } });
+    const synchronicity = await prisma.synchronicity.findUnique({ where: { id: synchronicityId, userId } });
     if (!synchronicity) {
       return res.status(404).json({ error: 'Synchronicity not found' });
     }
@@ -234,9 +260,16 @@ linkRoutes.post('/events/:eventId/synchronicities/:synchronicityId', async (req:
 });
 
 // DELETE /api/events/:eventId/synchronicities/:synchronicityId - Unlink synchronicity from event
-linkRoutes.delete('/events/:eventId/synchronicities/:synchronicityId', async (req: Request, res: Response) => {
+linkRoutes.delete('/events/:eventId/synchronicities/:synchronicityId', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const { eventId, synchronicityId } = req.params;
+
+    const event = await prisma.event.findUnique({ where: { id: eventId, userId } });
+    const synchronicity = await prisma.synchronicity.findUnique({ where: { id: synchronicityId, userId } });
+    if (!event || !synchronicity) {
+      return res.status(404).json({ error: 'Event or synchronicity not found' });
+    }
 
     const existingLink = await prisma.eventSynchronicity.findUnique({
       where: { eventId_synchronicityId: { eventId, synchronicityId } },
@@ -262,16 +295,17 @@ linkRoutes.delete('/events/:eventId/synchronicities/:synchronicityId', async (re
 // ============================================
 
 // POST /api/artifacts/:artifactId/persons/:personId - Link person to artifact
-linkRoutes.post('/artifacts/:artifactId/persons/:personId', async (req: Request, res: Response) => {
+linkRoutes.post('/artifacts/:artifactId/persons/:personId', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const { artifactId, personId } = req.params;
 
-    const artifact = await prisma.artifact.findUnique({ where: { id: artifactId } });
+    const artifact = await prisma.artifact.findUnique({ where: { id: artifactId, userId } });
     if (!artifact) {
       return res.status(404).json({ error: 'Artifact not found' });
     }
 
-    const person = await prisma.person.findUnique({ where: { id: personId } });
+    const person = await prisma.person.findUnique({ where: { id: personId, userId } });
     if (!person) {
       return res.status(404).json({ error: 'Person not found' });
     }
@@ -297,9 +331,16 @@ linkRoutes.post('/artifacts/:artifactId/persons/:personId', async (req: Request,
 });
 
 // DELETE /api/artifacts/:artifactId/persons/:personId - Unlink person from artifact
-linkRoutes.delete('/artifacts/:artifactId/persons/:personId', async (req: Request, res: Response) => {
+linkRoutes.delete('/artifacts/:artifactId/persons/:personId', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.authUser!.uid;
     const { artifactId, personId } = req.params;
+
+    const artifact = await prisma.artifact.findUnique({ where: { id: artifactId, userId } });
+    const person = await prisma.person.findUnique({ where: { id: personId, userId } });
+    if (!artifact || !person) {
+      return res.status(404).json({ error: 'Artifact or person not found' });
+    }
 
     const existingLink = await prisma.artifactPerson.findUnique({
       where: { artifactId_personId: { artifactId, personId } },
