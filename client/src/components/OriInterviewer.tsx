@@ -351,6 +351,7 @@ export default function OriInterviewer() {
   })
   const [currentOriMessage, setCurrentOriMessage] = useState<Message | null>(null)
   const [isSaved, setIsSaved] = useState(false)
+  const [isSeedingDemoArtifacts, setIsSeedingDemoArtifacts] = useState(false)
   const [showAstroSettings, setShowAstroSettings] = useState(false)
   const [showRectification, setShowRectification] = useState(false)
   const [birthData, setBirthData] = useState<{
@@ -988,6 +989,31 @@ Keep it to 2-3 short paragraphs max. No JSON, just the greeting text.`
 
   const userMessageCount = memory.messages.filter(m => m.role === 'user').length
 
+  const handleSeedDemoArtifacts = async () => {
+    if (isSeedingDemoArtifacts) return
+
+    setIsSeedingDemoArtifacts(true)
+    try {
+      const response = await fetch('/api/dev/seed-artifacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      })
+
+      if (!response.ok) {
+        const text = await response.text()
+        console.error('Seed demo artifacts failed:', response.status, text)
+        return
+      }
+
+      window.location.reload()
+    } catch (err) {
+      console.error('Seed demo artifacts error:', err)
+    } finally {
+      setIsSeedingDemoArtifacts(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-rose-50/30 via-amber-50/20 to-violet-50/30 dark:from-slate-950 dark:via-violet-950/20 dark:to-slate-900 flex flex-col">
       {/* Breathing animation keyframes */}
@@ -1037,6 +1063,17 @@ Keep it to 2-3 short paragraphs max. No JSON, just the greeting text.`
           </button>
           
           <div className="flex gap-2">
+            {import.meta.env.DEV && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSeedDemoArtifacts}
+                disabled={isSeedingDemoArtifacts}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                {isSeedingDemoArtifacts ? 'Seeding…' : 'Seed Demo'}
+              </Button>
+            )}
             {userMessageCount >= 2 && !isSaved && (
               <Button 
                 variant="ghost" 

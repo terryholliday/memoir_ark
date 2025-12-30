@@ -1,0 +1,55 @@
+﻿{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://proveniq.io/schemas/interview-engine/router-policy.schema.json",
+  "title": "Interview Engine Router Policy",
+  "type": "object",
+  "required": ["version","thresholds","priority_order","routes"],
+  "properties": {
+    "version": { "type": "string" },
+    "thresholds": {
+      "type": "object",
+      "required": ["VAGUENESS_THRESHOLD","EMOTION_THRESHOLD","CONTRADICTION_THRESHOLD","DISTRESS_HARD_STOP_THRESHOLD"],
+      "properties": {
+        "VAGUENESS_THRESHOLD": { "type": "number", "minimum": 0, "maximum": 1 },
+        "EMOTION_THRESHOLD": { "type": "number", "minimum": 0, "maximum": 1 },
+        "CONTRADICTION_THRESHOLD": { "type": "number", "minimum": 0, "maximum": 1 },
+        "DISTRESS_HARD_STOP_THRESHOLD": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "priority_order": { "type": "array", "items": { "type": "string" }, "minItems": 3 },
+    "routes": {
+      "type": "object",
+      "required": ["SAFETY_FALLBACK","PHIL_CLARIFY","OPRAH_EXPAND","WALTERS_NARROW","OPRAH_BASE"],
+      "properties": {
+        "SAFETY_FALLBACK": { "$ref": "#/definitions/routeDef" },
+        "PHIL_CLARIFY": { "$ref": "#/definitions/routeDef" },
+        "OPRAH_EXPAND": { "$ref": "#/definitions/routeDef" },
+        "WALTERS_NARROW": { "$ref": "#/definitions/routeDef" },
+        "OPRAH_BASE": { "$ref": "#/definitions/routeDef" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "definitions": {
+    "routeDef": {
+      "type": "object",
+      "required": ["persona_used","state_machine","max_steps","allowed_depth_range","fallback_route"],
+      "properties": {
+        "persona_used": { "type": "string" },
+        "state_machine": { "type": ["string","null"] },
+        "max_steps": { "type": "integer", "minimum": 0, "maximum": 10 },
+        "allowed_depth_range": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 0, "maximum": 3 },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "fallback_route": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
+

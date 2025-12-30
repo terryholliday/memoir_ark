@@ -1,0 +1,68 @@
+{
+  "version": "1.0",
+  "thresholds": {
+    "VAGUENESS_THRESHOLD": 0.6,
+    "EMOTION_THRESHOLD": 0.6,
+    "CONTRADICTION_THRESHOLD": 0.6,
+    "DISTRESS_HARD_STOP_THRESHOLD": 0.85
+  },
+  "priority_order": [
+    "SAFETY_FALLBACK",
+    "PHIL_CLARIFY",
+    "OPRAH_EXPAND",
+    "WALTERS_NARROW",
+    "OPRAH_BASE"
+  ],
+  "routes": {
+    "SAFETY_FALLBACK": {
+      "persona_used": "SAFETY_FALLBACK",
+      "state_machine": null,
+      "max_steps": 0,
+      "allowed_depth_range": [
+        0,
+        3
+      ],
+      "fallback_route": "OPRAH_BASE"
+    },
+    "PHIL_CLARIFY": {
+      "persona_used": "PHIL_CLARIFY",
+      "state_machine": "inconsistency_resolution",
+      "max_steps": 1,
+      "allowed_depth_range": [
+        0,
+        2
+      ],
+      "fallback_route": "OPRAH_BASE"
+    },
+    "OPRAH_EXPAND": {
+      "persona_used": "OPRAH_EXPAND",
+      "state_machine": "emotional_expansion",
+      "max_steps": 2,
+      "allowed_depth_range": [
+        0,
+        3
+      ],
+      "fallback_route": "OPRAH_BASE"
+    },
+    "WALTERS_NARROW": {
+      "persona_used": "WALTERS_NARROW",
+      "state_machine": "precision_narrowing",
+      "max_steps": 2,
+      "allowed_depth_range": [
+        0,
+        2
+      ],
+      "fallback_route": "OPRAH_BASE"
+    },
+    "OPRAH_BASE": {
+      "persona_used": "OPRAH_BASE",
+      "state_machine": null,
+      "max_steps": 0,
+      "allowed_depth_range": [
+        0,
+        3
+      ],
+      "fallback_route": "OPRAH_BASE"
+    }
+  }
+}

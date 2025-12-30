@@ -31,6 +31,8 @@ import { insightsRoutes } from './routes/insights';
 import { provenanceRoutes } from './routes/provenance';
 import { pdfExportRoutes } from './routes/pdfExport';
 import { familyShareRoutes } from './routes/familyShare';
+import { devRoutes } from './routes/dev';
+import { InterviewRoutes } from './routes/interview';
 
 dotenv.config();
 
@@ -92,6 +94,8 @@ app.use('/api/chatgpt-import', chatgptImportRoutes);
 app.use('/api/chapters', chapterOrganizerRoutes);
 app.use('/api/memoir', memoirExportRoutes);
 app.use('/api/ai', OriRoutes);
+app.use('/api/ai/interview', InterviewRoutes);
+app.use('/api/dev', devRoutes);
 app.use('/api/cloud', cloudStorageRoutes);
 app.use('/api/spotify', spotifyRoutes);
 app.use('/api/insights', insightsRoutes);

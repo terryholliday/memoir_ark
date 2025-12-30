@@ -1,0 +1,67 @@
+{
+  "version": "1.0",
+  "depth_levels": [
+    {
+      "level": 0,
+      "name": "warmup",
+      "description": "Low intimacy. Safe, factual, orientation. No probing."
+    },
+    {
+      "level": 1,
+      "name": "narrative",
+      "description": "What happened. Concrete details. Minimal emotion probing."
+    },
+    {
+      "level": 2,
+      "name": "reflection",
+      "description": "Meaning/impact/lessons. Carefully bounded emotional expansion."
+    },
+    {
+      "level": 3,
+      "name": "sensitive_core",
+      "description": "High sensitivity. Only with consent; strong safety and stop rules."
+    }
+  ],
+  "rules": [
+    {
+      "id": "DG_NO_ESCALATION_ON_REFUSAL",
+      "when": "refusal_or_discomfort==true",
+      "action": "deny",
+      "reason": "Never increase depth or press the user when they refuse or show discomfort."
+    },
+    {
+      "id": "DG_DEESCALATE_ON_DISTRESS",
+      "when": "emotion_score>=DISTRESS_HARD_STOP_THRESHOLD",
+      "action": "decrease_depth",
+      "reason": "If distress indicators are high, stabilize and reduce intensity."
+    },
+    {
+      "id": "DG_REQUIRE_CONSENT_FOR_SENSITIVE_DEPTH",
+      "when": "requested_depth_level>=3 && explicit_consent!=true",
+      "action": "require_consent",
+      "reason": "Sensitive depth requires explicit consent."
+    },
+    {
+      "id": "DG_NO_DOUBLE_ESCALATION_WITHOUT_USER_PUSH",
+      "when": "last_depth_change=='increase' && user_initiated_elaboration!=true",
+      "action": "hold_depth",
+      "reason": "Do not escalate twice in a row unless the user is voluntarily going deeper."
+    },
+    {
+      "id": "DG_CAP_RECURSION_WHEN_SHORT_OR_EVASIVE",
+      "when": "user_answer_tokens<20 && (vagueness_score>=VAGUENESS_THRESHOLD || refusal_or_discomfort==true)",
+      "action": "cap_recursion",
+      "reason": "When the user is short/evasive, avoid repeating pressure; stabilize and offer choices."
+    }
+  ],
+  "budgets": {
+    "default_max_depth": 2,
+    "max_escalations_per_topic": 2,
+    "require_consent_for_sensitive_depth": true
+  },
+  "recursion_caps": {
+    "precision_narrowing": 2,
+    "emotional_expansion": 2,
+    "inconsistency_resolution": 1
+  }
+}

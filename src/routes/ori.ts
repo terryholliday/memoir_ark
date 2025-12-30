@@ -1,6 +1,4 @@
 import { Router, Request, Response } from 'express';
-
-import { Router, Request, Response } from 'express';
 import { requireAiConsent, AuthenticatedRequest } from './auth';
 
 export const OriRoutes = Router();

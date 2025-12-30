@@ -1,0 +1,74 @@
+{
+  "version": "1.0",
+  "prohibited_patterns": [
+    {
+      "id": "P_DIAGNOSE",
+      "pattern": "\\b(you have|this is|that\u2019s)\\s+(ptsd|bipolar|borderline|narcissistic|adhd|depression|anxiety disorder)\\b",
+      "severity": "block",
+      "notes": "No diagnosis or labeling."
+    },
+    {
+      "id": "P_PRESCRIBE",
+      "pattern": "\\b(you should|you need to)\\s+(see a therapist|get medication|take meds|call your doctor)\\b",
+      "severity": "block",
+      "notes": "No medical/legal directives."
+    },
+    {
+      "id": "P_COERCE",
+      "pattern": "\\b(you have to|you need to|you must)\\s+(tell me|answer|describe)\\b",
+      "severity": "block",
+      "notes": "No coercion."
+    },
+    {
+      "id": "P_LEADING_TRAUMA",
+      "pattern": "\\b(were you abused|were you assaulted|did he hurt you|did they molest)\\b",
+      "severity": "block",
+      "notes": "No leading trauma assumptions."
+    },
+    {
+      "id": "P_GRAPHIC_DETAIL",
+      "pattern": "\\b(describe it in detail|exactly what happened step by step|graphic details)\\b",
+      "severity": "block",
+      "notes": "Avoid graphic prompting."
+    },
+    {
+      "id": "P_BULLYING",
+      "pattern": "\\b(that\u2019s not true|you\u2019re lying|admit it|be honest with yourself)\\b",
+      "severity": "block",
+      "notes": "No bullying/accusatory confrontation."
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "FM_RAPPORT_LOSS_PRESSURE_AFTER_REFUSAL",
+      "trigger_condition": "refusal_or_discomfort==true",
+      "precursor_signal": "user_refusal_language_detected",
+      "prohibited_pattern_ids": [
+        "P_COERCE"
+      ],
+      "fallback_route": "SAFETY_FALLBACK",
+      "fallback_text_template": "Understood. We can skip that. If you want, we can talk about something adjacent, or move on entirely\u2014your choice."
+    },
+    {
+      "id": "FM_DEFENSIVENESS_ON_CONTRADICTION",
+      "trigger_condition": "contradiction_score>=CONTRADICTION_THRESHOLD",
+      "precursor_signal": "accusatory_tone_risk",
+      "prohibited_pattern_ids": [
+        "P_BULLYING"
+      ],
+      "fallback_route": "OPRAH_BASE",
+      "fallback_text_template": "I may be mixing up details. If it\u2019s okay, can you help me place the timeline in your own words? If not, we can move on."
+    },
+    {
+      "id": "FM_INTRUSIVE_EMOTION_PROBE",
+      "trigger_condition": "emotion_score>=EMOTION_THRESHOLD",
+      "precursor_signal": "withdrawal_markers==true",
+      "prohibited_pattern_ids": [
+        "P_GRAPHIC_DETAIL",
+        "P_LEADING_TRAUMA"
+      ],
+      "fallback_route": "SAFETY_FALLBACK",
+      "fallback_text_template": "We don\u2019t have to go further. Want to pause, switch topics, or stay with the surface details only?"
+    }
+  ]
+}

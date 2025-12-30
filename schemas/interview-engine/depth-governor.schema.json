@@ -1,0 +1,62 @@
+﻿{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://proveniq.io/schemas/interview-engine/depth-governor.schema.json",
+  "title": "Interview Engine Depth Governor Config",
+  "type": "object",
+  "required": ["version","depth_levels","rules","budgets","recursion_caps"],
+  "properties": {
+    "version": { "type": "string" },
+    "depth_levels": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "required": ["level","name","description"],
+        "properties": {
+          "level": { "type": "integer", "minimum": 0, "maximum": 3 },
+          "name": { "type": "string" },
+          "description": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "rules": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "object",
+        "required": ["id","when","action","reason"],
+        "properties": {
+          "id": { "type": "string" },
+          "when": { "type": "string" },
+          "action": { "type": "string", "enum": ["allow","deny","decrease_depth","hold_depth","cap_recursion","require_consent"] },
+          "reason": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "budgets": {
+      "type": "object",
+      "required": ["default_max_depth","max_escalations_per_topic","require_consent_for_sensitive_depth"],
+      "properties": {
+        "default_max_depth": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "max_escalations_per_topic": { "type": "integer", "minimum": 0, "maximum": 10 },
+        "require_consent_for_sensitive_depth": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "recursion_caps": {
+      "type": "object",
+      "required": ["precision_narrowing","emotional_expansion","inconsistency_resolution"],
+      "properties": {
+        "precision_narrowing": { "type": "integer", "minimum": 0, "maximum": 10 },
+        "emotional_expansion": { "type": "integer", "minimum": 0, "maximum": 10 },
+        "inconsistency_resolution": { "type": "integer", "minimum": 0, "maximum": 10 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
+

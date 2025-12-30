@@ -1,0 +1,172 @@
+{
+  "version": "1.0",
+  "machines": {
+    "precision_narrowing": {
+      "id": "precision_narrowing",
+      "entry_conditions": [
+        "vagueness_score>=VAGUENESS_THRESHOLD",
+        "refusal_or_discomfort!=true",
+        "depth_level<=2"
+      ],
+      "max_steps": 2,
+      "states": [
+        {
+          "state": "request_specificity",
+          "prompt_templates": [
+            "When you say it was '{vague_phrase}', what do you mean specifically? One concrete detail is enough.",
+            "Can you name one part of it that was hardest\u2014an event, a moment, or a specific example?"
+          ],
+          "transitions": [
+            {
+              "when": "user_provided_concrete_example==true",
+              "next": "anchor_time_or_context"
+            },
+            {
+              "when": "refusal_or_discomfort==true",
+              "next": "exit"
+            }
+          ]
+        },
+        {
+          "state": "anchor_time_or_context",
+          "prompt_templates": [
+            "About when was that\u2014roughly what year or season?",
+            "Who else was involved, and where were you when it happened?"
+          ],
+          "transitions": [
+            {
+              "when": "time_or_context_anchored==true",
+              "next": "exit"
+            },
+            {
+              "when": "refusal_or_discomfort==true",
+              "next": "exit"
+            }
+          ]
+        }
+      ],
+      "exit_conditions": [
+        "time_or_context_anchored==true",
+        "user_provided_concrete_example==true",
+        "refusal_or_discomfort==true",
+        "max_steps_reached==true"
+      ],
+      "fallback_route": "OPRAH_BASE"
+    },
+    "emotional_expansion": {
+      "id": "emotional_expansion",
+      "entry_conditions": [
+        "emotion_score>=EMOTION_THRESHOLD",
+        "refusal_or_discomfort!=true"
+      ],
+      "max_steps": 2,
+      "states": [
+        {
+          "state": "mirror_emotion",
+          "prompt_templates": [
+            "It sounds like you felt {emotion_label}.",
+            "I\u2019m hearing {emotion_label} in what you said."
+          ],
+          "transitions": [
+            {
+              "when": "withdrawal_markers==true",
+              "next": "stabilize_choice"
+            },
+            {
+              "when": "user_elaborated==true",
+              "next": "normalize_validate"
+            }
+          ]
+        },
+        {
+          "state": "normalize_validate",
+          "prompt_templates": [
+            "That reaction makes sense given what you were dealing with.",
+            "A lot of people would feel something similar in that situation."
+          ],
+          "transitions": [
+            {
+              "when": "withdrawal_markers==true",
+              "next": "stabilize_choice"
+            },
+            {
+              "when": "user_elaborated==true",
+              "next": "origin_probe"
+            }
+          ]
+        },
+        {
+          "state": "origin_probe",
+          "prompt_templates": [
+            "Where do you think that feeling came from in that moment?",
+            "What about that situation hit you the hardest\u2014what was the meaning of it for you?"
+          ],
+          "transitions": [
+            {
+              "when": "withdrawal_markers==true",
+              "next": "stabilize_choice"
+            },
+            {
+              "when": "user_elaborated==true",
+              "next": "exit"
+            }
+          ]
+        },
+        {
+          "state": "stabilize_choice",
+          "prompt_templates": [
+            "We don\u2019t have to go further than you want. We can stay here, shift to a safer part of the story, or move on\u2014your choice.",
+            "If this feels like too much, we can pause. Want to keep going, step sideways to a related memory, or switch topics?"
+          ],
+          "transitions": [
+            {
+              "when": "user_chose_option==true",
+              "next": "exit"
+            }
+          ]
+        }
+      ],
+      "exit_conditions": [
+        "user_elaborated==true",
+        "withdrawal_markers==true",
+        "refusal_or_discomfort==true",
+        "max_steps_reached==true"
+      ],
+      "fallback_route": "OPRAH_BASE"
+    },
+    "inconsistency_resolution": {
+      "id": "inconsistency_resolution",
+      "entry_conditions": [
+        "contradiction_score>=CONTRADICTION_THRESHOLD",
+        "refusal_or_discomfort!=true",
+        "depth_level<=2"
+      ],
+      "max_steps": 1,
+      "states": [
+        {
+          "state": "juxtapose_and_clarify",
+          "prompt_templates": [
+            "Help me make sure I\u2019m understanding: earlier you said '{prior_claim}', and just now you said '{current_claim}'. Which one feels more accurate\u2014or is there a way both are true in different contexts?",
+            "I might be missing something. Can you walk me through the timeline so I can place these two statements correctly?"
+          ],
+          "transitions": [
+            {
+              "when": "user_clarified==true",
+              "next": "exit"
+            },
+            {
+              "when": "refusal_or_discomfort==true",
+              "next": "exit"
+            }
+          ]
+        }
+      ],
+      "exit_conditions": [
+        "user_clarified==true",
+        "refusal_or_discomfort==true",
+        "max_steps_reached==true"
+      ],
+      "fallback_route": "OPRAH_BASE"
+    }
+  }
+}
